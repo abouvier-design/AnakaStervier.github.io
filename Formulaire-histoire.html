@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Créateur de Livre d’Histoire</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 1rem; }
+    h1, h2 { color: #333; }
+    form { max-width: 800px; margin: auto; background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .form-section { margin-bottom: 2rem; }
+    label { display: block; margin-top: 1rem; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%; padding: 0.5rem; margin-top: 0.3rem;
+      border: 1px solid #ccc; border-radius: 4px;
+    }
+    input[type="file"] { margin-top: 0.5rem; }
+    .family-member { border: 1px solid #ccc; padding: 1rem; border-radius: 5px; margin-bottom: 1rem; background: #f1f1f1; }
+    button { padding: 0.7rem 1.5rem; font-size: 1rem; border: none; border-radius: 4px; background: #007bff; color: #fff; cursor: pointer; margin-top: 1rem; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <form id="storyForm">
+    <h1>Créateur de Livre d’Histoire Illustré</h1>
+
+    <div class="form-section">
+      <h2>1. Informations générales</h2>
+      <label>Prénom : <input type="text" name="prenom" required></label>
+      <label>Nom : <input type="text" name="nom" required></label>
+      <label>Âge : <input type="number" name="age" min="1" required></label>
+    </div>
+
+    <div class="form-section">
+      <h2>2. Contexte de l’histoire</h2>
+      <label>Âge dans l’histoire :
+        <select name="ageHistoire">
+          <option value="enfant">Enfant</option>
+          <option value="adolescent">Adolescent</option>
+          <option value="adulte">Adulte</option>
+        </select>
+      </label>
+      <label>Univers :
+        <select name="univers">
+          <option value="reel">Monde réel</option>
+          <option value="imaginaire">Monde imaginaire</option>
+          <option value="mixte">Un mélange des deux</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="form-section">
+      <h2>3. Ton univers personnel</h2>
+      <label>Sport préféré : <input type="text" name="sport"></label>
+      <label>Animal préféré : <input type="text" name="animal"></label>
+      <label>Lieu préféré : <input type="text" name="lieu"></label>
+      <label>Qualité du héros : <input type="text" name="qualite"></label>
+      <label>Peur à surmonter : <input type="text" name="peur"></label>
+    </div>
+
+    <div class="form-section">
+      <h2>4. Ta famille (Arbre généalogique)</h2>
+      <div id="familyList"></div>
+      <button type="button" onclick="addFamilyMember()">+ Ajouter un membre</button>
+    </div>
+
+    <div class="form-section">
+      <h2>5. Le héros</h2>
+      <label>Souhaites-tu être le héros ?
+        <select name="heros">
+          <option value="oui">Oui</option>
+          <option value="non">Non</option>
+        </select>
+      </label>
+      <label>Nom du héros (si différent) : <input type="text" name="nomHeros"></label>
+    </div>
+
+    <div class="form-section">
+      <h2>6. Thème de l’histoire</h2>
+      <label>Choisis un thème :
+        <select name="theme">
+          <option value="quête magique">Une quête magique</option>
+          <option value="tournoi">Un tournoi sportif</option>
+          <option value="voyage">Un voyage dans le temps</option>
+          <option value="enquete">Une enquête mystérieuse</option>
+          <option value="famille">Une histoire de famille</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="form-section">
+      <h2>7. Style des illustrations</h2>
+      <label>
+        <select name="styleIllustration">
+          <option value="enfantin">Dessin enfantin</option>
+          <option value="bd">Style bande dessinée</option>
+          <option value="realiste">Réaliste</option>
+          <option value="manga">Style manga</option>
+          <option value="surprise">Surprise-moi !</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="form-section">
+      <h2>8. Dédicace</h2>
+      <label>Message personnel : <textarea name="dedicace" rows="3"></textarea></label>
+    </div>
+
+    <div class="form-section">
+      <h2>9. Style narratif</h2>
+      <label>
+        <select name="styleNarratif">
+          <option value="conte">Conte pour enfants</option>
+          <option value="aventure">Aventure épique</option>
+          <option value="humoristique">Histoire humoristique</option>
+          <option value="poetique">Histoire poétique</option>
+          <option value="surprise">Surprise-moi !</option>
+        </select>
+      </label>
+    </div>
+
+    <button type="submit">Générer mon histoire</button>
+    <button type="button" onclick="downloadForm()">Télécharger ce formulaire HTML</button>
+  </form>
+
+  <script>
+    function addFamilyMember() {
+      const container = document.getElementById('familyList');
+      const index = container.children.length;
+      const div = document.createElement('div');
+      div.className = 'family-member';
+      div.innerHTML = `
+        <label>Rôle : <input type="text" name="famille[${index}][role]" required></label>
+        <label>Prénom : <input type="text" name="famille[${index}][prenom]" required></label>
+        <label>Photo : <input type="file" name="famille[${index}][photo]" accept="image/*" required></label>
+      `;
+      container.appendChild(div);
+    }
+
+    document.getElementById('storyForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      alert("Formulaire rempli ! Le livre va maintenant être généré.");
+      // Traitement à intégrer ici (récupération des données, génération de l’histoire, etc.)
+    });
+
+    function downloadForm() {
+      const html = document.documentElement.outerHTML;
+      const blob = new Blob([html], { type: 'text/html' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'formulaire_histoire.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
