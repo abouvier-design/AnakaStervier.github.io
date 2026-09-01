@@ -1,5 +1,6 @@
 // Univers graphiques + constantes — repris tels quels du prototype charabilla.jsx.
 // Seule différence : les polices passent par les variables CSS de next/font (adaptation n°4).
+import { LEXIQUE_100, FR2EN as LEXIQUE_FR2EN } from "./lexique.generated";
 
 export const THEMES = {
   terracotta: {
@@ -67,7 +68,11 @@ export const FR2EN = {
   maman: "a mom character", bebe: "a baby", papi: "a grandpa character", mamie: "a grandma character",
   musique: "a music note", "pate a modeler": "a playdough pot",
 };
-export const toEnglish = (fr) => FR2EN[normalize(fr)] || `a ${normalize(fr)}`;
+// Le lexique généré (data/*.csv) a priorité ; la table du prototype sert de secours.
+export const toEnglish = (fr) =>
+  LEXIQUE_FR2EN[keyify(fr)] || FR2EN[normalize(fr)] || `a ${normalize(fr)}`;
+
+export const LEXIQUE = LEXIQUE_100;
 
 // ============ Grille ============
 export function gridFor(n) {

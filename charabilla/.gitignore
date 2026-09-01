@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# bibliothèque d'illustrations (données locales de Phase 1)
+/bibliotheque/*
+!/bibliotheque/.gitkeep

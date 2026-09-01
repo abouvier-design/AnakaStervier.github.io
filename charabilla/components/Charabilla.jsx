@@ -1,16 +1,19 @@
 "use client";
 
-// Application Charabilla — portage fidèle de prototype/charabilla.jsx.
-// Adaptations DEMARRAGE.md : window.storage -> lib/storage.js (localStorage),
-// polices -> next/font (app/layout.tsx), styles d'impression -> app/globals.css.
-// Le reste (design, textes, logique) est repris tel quel.
+// Application utilisateur Charabilla — issue de prototype/charabilla.jsx, avec les décisions
+// de la fondatrice : bibliothèque réservée au back-office, illustrations posées directement
+// sur le fond de l'affiche (ni cercle ni fond), génération d'illustration dans l'outil,
+// filigrane sur l'aperçu.
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import storage from "@/lib/storage";
-import {
-  THEMES, MAX_WORDS, INK, CTA, normalize, keyify, toEnglish, gridFor, FORMATS, FRAMES,
-} from "@/lib/themes";
-import { ART, SVG_MAP, SVG_LIBRARY, SVG_NAMES, EMOJI_PICKER_LIST, starPath } from "@/lib/art";
+import { THEMES, MAX_WORDS, INK, CTA, normalize, keyify, gridFor, FORMATS, FRAMES } from "@/lib/themes";
+import { ART, SVG_MAP, starPath } from "@/lib/art";
+import { creerClient } from "@/lib/api-client";
+import Illustration, { enPreparation } from "./Illustration";
+import ModaleGeneration from "./ModaleGeneration";
+
+const CLE_MES_GENERATIONS = "charabilla-mes-generations";
 
 function PosterDeco({ theme }) {
   if (theme.deco === "arches")
@@ -39,6 +42,7 @@ function PosterDeco({ theme }) {
     </svg>
   );
 }
+
 function CellStars({ color }) {
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none">
@@ -49,30 +53,17 @@ function CellStars({ color }) {
   );
 }
 
-// Redimensionne une image uploadée en carré 512px (JPEG compact pour le stockage)
-function resizeImage(file, size = 512) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        const s = Math.min(img.width, img.height);
-        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+// Filigrane de l'aperçu : rend une capture d'écran inutilisable pour l'impression.
+function Filigrane({ theme }) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='260' height='150'><text x='10' y='90' font-family='Helvetica, Arial, sans-serif' font-size='17' font-weight='700' letter-spacing='2' fill='${theme.word}' fill-opacity='0.15' transform='rotate(-22 130 75)'>charabilla · aperçu</text></svg>`;
+  return (
+    <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
+      style={{ zIndex: 5, backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`, backgroundSize: "260px 150px" }} />
+  );
 }
 
-// ============ APP ============
 export default function Charabilla() {
+  const client = useMemo(() => creerClient(), []);
   const [childName, setChildName] = useState("");
   const [ageLine, setAgeLine] = useState("");
   const [titleStyle, setTitleStyle] = useState("dico");
@@ -81,6 +72,7 @@ export default function Charabilla() {
   const [realWord, setRealWord] = useState("");
   const [childWord, setChildWord] = useState("");
   const [pickerFor, setPickerFor] = useState(null);
+  const [recherche, setRecherche] = useState("");
   const [pendingArt, setPendingArt] = useState(null);
   const [editIdx, setEditIdx] = useState(null);
   const [editReal, setEditReal] = useState("");
@@ -92,34 +84,34 @@ export default function Charabilla() {
   const [orderFrame, setOrderFrame] = useState("none");
   const [orderDone, setOrderDone] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  // Bibliothèque personnelle
-  const [libIndex, setLibIndex] = useState({ terracotta: [], botanique: [], celeste: [] });
-  const [imgCache, setImgCache] = useState({});
-  const [uploading, setUploading] = useState(false);
-  // Génération IA (flux avec validation)
-  const [genOpen, setGenOpen] = useState(false);
-  const [genWord, setGenWord] = useState("");
-  const [genEn, setGenEn] = useState("");
-  const [genImg, setGenImg] = useState(null);
-  const [genTarget, setGenTarget] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const fileInputRef = useRef(null);
-  const genFileRef = useRef(null);
+  // Bibliothèque de l'univers courant (gérée par le back-office) + mes propres générations
+  const [items, setItems] = useState([]);
+  const [mesGenerations, setMesGenerations] = useState([]);
+  const [gen, setGen] = useState(null); // { mot, target }
 
   const theme = THEMES[themeKey];
-  const libSet = useMemo(() => new Set(libIndex[themeKey] || []), [libIndex, themeKey]);
 
-  // Priorité : bibliothèque perso > croquis intégré > emoji provisoire
+  // Un utilisateur voit les illustrations validées, plus celles qu'il a générées lui-même.
+  const visibles = useMemo(
+    () => items.filter((it) => it.statut === "valide" || mesGenerations.includes(it.key)),
+    [items, mesGenerations]
+  );
+
+  const chargerBibliotheque = async (univers) => {
+    try { setItems(await client.listerBibliotheque(univers)); } catch { setItems([]); }
+  };
+
+  // Priorité : bibliothèque > croquis intégré > rien (proposera la génération)
   const suggestArt = (word) => {
     const w = normalize(word); const k = keyify(word);
     if (!w) return { type: "svg", id: "etoile" };
-    if (libSet.has(k)) return { type: "lib", word: k };
-    for (const key of libSet) { if (w.length >= 3 && (key.startsWith(k) || k.startsWith(key))) return { type: "lib", word: key }; }
+    if (visibles.some((it) => it.key === k)) return { type: "lib", word: k };
+    for (const it of visibles) { if (w.length >= 3 && (it.key.startsWith(k) || k.startsWith(it.key))) return { type: "lib", word: it.key }; }
     if (SVG_MAP[w]) return { type: "svg", id: SVG_MAP[w] };
     for (const key of Object.keys(SVG_MAP)) { if (w.length >= 3 && (key.startsWith(w) || w.startsWith(key))) return { type: "svg", id: SVG_MAP[key] }; }
-    return null; // rien trouvé → proposera la génération
+    return null;
   };
-  const autoArt = useMemo(() => suggestArt(realWord) || { type: "svg", id: "etoile" }, [realWord, libSet]);
+  const autoArt = useMemo(() => suggestArt(realWord) || { type: "svg", id: "etoile" }, [realWord, visibles]); // eslint-disable-line react-hooks/exhaustive-deps
   const newArt = pendingArt || autoArt;
   const noMatch = realWord.trim() && !pendingArt && !suggestArt(realWord);
 
@@ -127,15 +119,15 @@ export default function Charabilla() {
   const rows = Math.ceil(tier / cols);
   const slots = [...words, ...Array(Math.max(0, tier - words.length)).fill(null)];
   const SIZES = {
-    1: { art: "30cqw", word: "6.2cqw", blob: "40cqw" },
-    4: { art: "16cqw", word: "4.6cqw", blob: "21cqw" },
-    8: { art: "11cqw", word: "3.6cqw", blob: "14cqw" },
-    12: { art: "9.5cqw", word: "3cqw", blob: "12.5cqw" },
-    16: { art: "8cqw", word: "2.5cqw", blob: "10.5cqw" },
+    1: { art: "40cqw", word: "6.2cqw" },
+    4: { art: "22cqw", word: "4.6cqw" },
+    8: { art: "15cqw", word: "3.6cqw" },
+    12: { art: "13cqw", word: "3cqw" },
+    16: { art: "11cqw", word: "2.5cqw" },
   };
   const S = SIZES[tier];
 
-  // Chargement initial : projets + index bibliothèque
+  // Chargement initial : projets sauvegardés + mes générations
   useEffect(() => {
     (async () => {
       try {
@@ -151,69 +143,22 @@ export default function Charabilla() {
             setWords((d.words || []).filter((w) => w.art));
           }
         }
-      } catch (e) { /* première visite */ }
+      } catch { /* première visite */ }
       try {
-        const idx = await storage.get("charabilla-lib-index");
-        if (idx && idx.value) setLibIndex({ terracotta: [], botanique: [], celeste: [], ...JSON.parse(idx.value) });
-      } catch (e) { /* pas encore de bibliothèque */ }
+        const g = await storage.get(CLE_MES_GENERATIONS);
+        if (g && g.value) setMesGenerations(JSON.parse(g.value));
+      } catch { /* rien encore */ }
       setLoaded(true);
     })();
   }, []);
 
-  // Charge en cache les images de bibliothèque nécessaires (affiche + univers courant)
   useEffect(() => {
-    if (!loaded) return;
-    const needed = new Set();
-    words.forEach((w) => { if (w.art.type === "lib" && libSet.has(w.art.word)) needed.add(w.art.word); });
-    if (pickerFor !== null) (libIndex[themeKey] || []).slice(0, 40).forEach((k) => needed.add(k));
-    const missing = [...needed].filter((k) => !imgCache[`${themeKey}:${k}`]);
-    if (missing.length === 0) return;
-    (async () => {
-      const add = {};
-      for (const k of missing) {
-        try {
-          const r = await storage.get(`charabilla-img-${themeKey}-${k}`);
-          if (r && r.value) add[`${themeKey}:${k}`] = r.value;
-        } catch (e) { /* image absente */ }
-      }
-      if (Object.keys(add).length) setImgCache((c) => ({ ...c, ...add }));
-    })();
-  }, [loaded, words, themeKey, pickerFor, libIndex]);
-
-  const persistLibIndex = async (next) => {
-    setLibIndex(next);
-    try { await storage.set("charabilla-lib-index", JSON.stringify(next)); } catch (e) { console.error(e); }
-  };
-  const saveLibImage = async (univers, wordKey, dataUrl) => {
-    try {
-      await storage.set(`charabilla-img-${univers}-${wordKey}`, dataUrl);
-      const list = libIndex[univers] || [];
-      const next = { ...libIndex, [univers]: list.includes(wordKey) ? list : [...list, wordKey].sort() };
-      await persistLibIndex(next);
-      setImgCache((c) => ({ ...c, [`${univers}:${wordKey}`]: dataUrl }));
-      return true;
-    } catch (e) { console.error(e); return false; }
-  };
-  const deleteLibImage = async (univers, wordKey) => {
-    try { await storage.delete(`charabilla-img-${univers}-${wordKey}`); } catch (e) { /* déjà absente */ }
-    await persistLibIndex({ ...libIndex, [univers]: (libIndex[univers] || []).filter((k) => k !== wordKey) });
-  };
-
-  // Upload en masse : le nom du fichier = le mot (chat.png → chat)
-  const handleBulkUpload = async (files) => {
-    setUploading(true);
-    let ok = 0;
-    for (const file of files) {
-      const wordKey = keyify(file.name.replace(/\.[^.]+$/, ""));
-      if (!wordKey) continue;
-      try {
-        const dataUrl = await resizeImage(file);
-        if (await saveLibImage(themeKey, wordKey, dataUrl)) ok++;
-      } catch (e) { console.error("Upload raté :", file.name, e); }
-    }
-    setUploading(false);
-    flash(`${ok} illustration${ok > 1 ? "s" : ""} ajoutée${ok > 1 ? "s" : ""} à ${THEMES[themeKey].label} ✓`);
-  };
+    let actif = true;
+    client.listerBibliotheque(themeKey)
+      .then((liste) => { if (actif) setItems(liste); })
+      .catch(() => { if (actif) setItems([]); });
+    return () => { actif = false; };
+  }, [client, themeKey]);
 
   const flash = (m) => { setNotice(m); setTimeout(() => setNotice(""), 2400); };
   const persist = async (nextProjects, last) => {
@@ -255,61 +200,47 @@ export default function Charabilla() {
     [next[editIdx], next[j]] = [next[j], next[editIdx]];
     setWords(next); setEditIdx(j);
   };
-  const setArtAt = (art) => {
-    if (pickerFor === "new") setPendingArt(art);
-    else setWords(words.map((w, i) => (i === pickerFor ? { ...w, art } : w)));
+  const setArtAt = (art, target = pickerFor) => {
+    if (target === "new") setPendingArt(art);
+    else if (typeof target === "number") setWords((ws) => ws.map((w, i) => (i === target ? { ...w, art } : w)));
     setPickerFor(null);
   };
 
-  // Flux de génération IA (prototype : toi + ChatGPT ; version finale : appel API automatique)
-  const openGen = (word, target) => {
-    setGenWord(word); setGenEn(toEnglish(word)); setGenImg(null);
-    setGenTarget(target); setGenOpen(true); setPickerFor(null); setCopied(false);
+  // Génération d'une illustration dans l'outil
+  const openGen = (mot, target) => { setGen({ mot: mot.trim(), target }); setPickerFor(null); setEditIdx(null); };
+  const surIllustrationValidee = async (item) => {
+    const next = mesGenerations.includes(item.key) ? mesGenerations : [...mesGenerations, item.key];
+    setMesGenerations(next);
+    try { await storage.set(CLE_MES_GENERATIONS, JSON.stringify(next)); } catch { /* sans gravité */ }
+    await chargerBibliotheque(themeKey);
+    setArtAt({ type: "lib", word: item.key }, gen.target);
+    setGen(null);
+    flash(`Illustration « ${item.mot} » ajoutée à ton affiche ✓`);
   };
-  const copyPrompt = async () => {
-    try { await navigator.clipboard.writeText(theme.prompt(genEn)); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-    catch (e) { flash("Copie impossible — sélectionne le texte à la main"); }
-  };
-  const handleGenUpload = async (file) => {
-    try { setGenImg(await resizeImage(file)); } catch (e) { flash("Image illisible, réessaie"); }
-  };
-  const validateGen = async () => {
-    const k = keyify(genWord);
-    const saved = await saveLibImage(themeKey, k, genImg);
-    if (!saved) { flash("Sauvegarde impossible, réessaie"); return; }
-    const art = { type: "lib", word: k };
-    if (genTarget === "new") setPendingArt(art);
-    else if (typeof genTarget === "number") setWords(words.map((w, i) => (i === genTarget ? { ...w, art } : w)));
-    setGenOpen(false);
-    flash(`« ${genWord} » ajouté à ta bibliothèque ${theme.label} ✓`);
+  const surSignalement = () => {
+    // Le mot garde sa place : son illustration se mettra en place quand elle existera.
+    setArtAt({ type: "lib", word: keyify(gen.mot) }, gen.target);
+    setGen(null);
   };
 
   const posterTitle = childName.trim()
     ? (titleStyle === "dico" ? `Le dico de ${childName.trim()}` : `L'imagier de ${childName.trim()}`)
     : (titleStyle === "dico" ? "Le dico de…" : "L'imagier de…");
-  const ui = { fontFamily: "'Nunito', sans-serif" };
-  const uiDisplay = { fontFamily: "'Fredoka', sans-serif" };
+  const ui = { fontFamily: "var(--font-nunito), sans-serif" };
+  const uiDisplay = { fontFamily: "var(--font-fredoka), sans-serif" };
   const fmt = FORMATS.find((f) => f.id === orderFormat);
   const frm = FRAMES.find((f) => f.id === orderFrame);
   const total = fmt.price + (fmt.frame ? frm.price : 0);
-  const blobRadius = "46% 54% 52% 48% / 52% 46% 54% 48%";
 
-  const Art = ({ art, size }) => {
-    if (art.type === "lib") {
-      const img = imgCache[`${themeKey}:${art.word}`];
-      if (img) return <img src={img} alt="" style={{ width: size, height: size, objectFit: "cover", borderRadius: blobRadius, display: "block" }} />;
-      const fb = SVG_MAP[art.word] || "etoile";
-      return <svg viewBox="0 0 100 100" style={{ width: size, height: size, opacity: 0.4 }}>{ART[fb](theme.pal)}</svg>;
-    }
-    if (art.type === "svg" && ART[art.id]) return <svg viewBox="0 0 100 100" style={{ width: size, height: size, display: "block" }}>{ART[art.id](theme.pal)}</svg>;
-    return <span style={{ fontSize: `calc(${size} * 0.7)`, lineHeight: 1 }}>{art.e || "✨"}</span>;
-  };
+  const motPourPicker = pickerFor === "new" ? realWord.trim() : (typeof pickerFor === "number" ? words[pickerFor]?.real || "" : "");
+  const rechercheNorm = keyify(recherche);
+  const itemsFiltres = visibles.filter((it) => !rechercheNorm || it.key.includes(rechercheNorm) || keyify(it.mot).includes(rechercheNorm));
 
   if (!loaded) return <div className="min-h-screen" style={{ background: "#EEF1F8" }} />;
 
   return (
     <div className="min-h-screen" style={{ background: "#EEF1F8", ...ui, color: INK }}>
-      <header className="no-print px-5 pt-8 pb-4 max-w-5xl mx-auto flex items-center gap-3">
+      <header className="px-5 pt-8 pb-4 max-w-5xl mx-auto flex items-center gap-3">
         <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm" style={{ background: CTA }}>💬</div>
         <div>
           <h1 className="text-3xl font-semibold tracking-tight" style={uiDisplay}>charabilla</h1>
@@ -318,14 +249,14 @@ export default function Charabilla() {
       </header>
 
       {notice && (
-        <div className="no-print fixed top-4 left-1/2 -translate-x-1/2 z-[60] rounded-full px-5 py-2 text-sm font-bold text-white shadow-lg" style={{ background: INK }}>{notice}</div>
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] rounded-full px-5 py-2 text-sm font-bold text-white shadow-lg" style={{ background: INK }}>{notice}</div>
       )}
 
       <main className="max-w-5xl mx-auto px-5 pb-16 grid gap-8 lg:grid-cols-2 lg:items-start">
         {/* ============ FORMULAIRE ============ */}
-        <section className="no-print flex flex-col gap-5">
+        <section className="flex flex-col gap-5">
           <div className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: CTA }}>Étape 1 · L'enfant</div>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: CTA }}>Étape 1 · L&apos;enfant</div>
             <input value={childName} onChange={(e) => setChildName(e.target.value)} placeholder="Prénom de l'enfant"
               className="w-full rounded-2xl border-2 px-4 py-3 text-lg outline-none" style={{ borderColor: "#DCE2F0", ...uiDisplay }} />
             <div className="flex gap-2 mt-3">
@@ -357,54 +288,28 @@ export default function Charabilla() {
               </div>
             </div>
             <div className="flex items-center gap-3 mt-4">
-              <button onClick={() => setPickerFor("new")}
+              <button onClick={() => { setRecherche(""); setPickerFor("new"); }}
                 className="w-16 h-16 rounded-2xl flex items-center justify-center border-2 hover:scale-105 transition-transform flex-shrink-0 overflow-hidden"
                 style={{ borderColor: newArt.type === "lib" ? CTA : "#DCE2F0", background: theme.bg }}>
-                <Art art={newArt} size="52px" />
+                <Illustration art={newArt} univers={themeKey} items={visibles} size="52px" />
               </button>
               <div className="text-xs opacity-70 flex-1">
-                {newArt.type === "lib" ? "✓ Trouvée dans ta bibliothèque" : noMatch ? "Pas d'illustration trouvée — génère-la !" : "Croquis provisoire — touche pour changer ou générer."}
+                {newArt.type === "lib" ? "✓ Illustration de la bibliothèque" : noMatch ? "Pas encore d'illustration pour ce mot — génère-la !" : "Croquis provisoire — touche pour choisir ou générer la vraie illustration."}
               </div>
               <button onClick={addWord} disabled={!realWord.trim() || !childWord.trim() || words.length >= MAX_WORDS}
                 className="rounded-2xl px-5 py-3 font-bold text-white shadow-sm disabled:opacity-40" style={{ background: CTA, ...uiDisplay }}>Ajouter</button>
             </div>
-            {noMatch && (
+            {realWord.trim() && newArt.type !== "lib" && (
               <button onClick={() => openGen(realWord, "new")}
                 className="w-full mt-3 rounded-2xl px-4 py-2.5 text-sm font-bold border-2 transition-all"
                 style={{ borderColor: CTA, color: CTA, background: "#FDF1F7" }}>
-                ✨ Générer l'illustration « {realWord.trim()} » avec l'IA
+                ✨ Générer une illustration pour « {realWord.trim()} »
               </button>
             )}
           </div>
 
-          {/* Ma bibliothèque */}
           <div className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-xs font-bold uppercase tracking-widest" style={{ color: CTA }}>Ma bibliothèque · {theme.label}</div>
-              <div className="text-xs font-bold rounded-full px-3 py-1" style={{ background: "#F0F3FA" }}>{(libIndex[themeKey] || []).length} images</div>
-            </div>
-            <p className="text-[11px] opacity-60 mb-3">Dépose ici les illustrations générées dans ChatGPT. Le nom du fichier = le mot (ex. <b>chat.png</b>, <b>compote.png</b>).</p>
-            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={(e) => { if (e.target.files?.length) handleBulkUpload([...e.target.files]); e.target.value = ""; }} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-              className="w-full rounded-2xl px-4 py-3 font-bold border-2 border-dashed transition-all disabled:opacity-50"
-              style={{ borderColor: "#C9D4E8", background: "#F7F9FD" }}>
-              {uploading ? "Ajout en cours…" : "📥 Ajouter des illustrations"}
-            </button>
-            {(libIndex[themeKey] || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {(libIndex[themeKey] || []).map((k) => (
-                  <span key={k} className="inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: theme.bg, color: INK }}>
-                    {k}
-                    <button onClick={() => deleteLibImage(themeKey, k)} className="opacity-50 hover:opacity-100" title="Retirer">✕</button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-3xl bg-white p-5 shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: CTA }}>Étape 3 · L'univers</div>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: CTA }}>Étape 3 · L&apos;univers</div>
             <div className="grid grid-cols-3 gap-2">
               {Object.entries(THEMES).map(([k, t]) => (
                 <button key={k} onClick={() => setThemeKey(k)}
@@ -421,7 +326,7 @@ export default function Charabilla() {
           <div className="rounded-3xl bg-white p-5 shadow-sm">
             <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: CTA }}>Mon compte · mes dicos</div>
             {Object.keys(projects).length === 0 ? (
-              <p className="text-xs opacity-70">Aucun dico sauvegardé pour l'instant.</p>
+              <p className="text-xs opacity-70">Aucun dico sauvegardé pour l&apos;instant.</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {Object.keys(projects).map((key) => (
@@ -438,18 +343,17 @@ export default function Charabilla() {
           <div className="flex gap-3">
             <button onClick={saveProject} className="flex-1 rounded-2xl px-4 py-3 font-bold border-2 bg-white" style={{ borderColor: INK, ...uiDisplay }}>Sauvegarder</button>
             <button onClick={() => { setOrderOpen(true); setOrderDone(false); }} disabled={words.length === 0}
-              className="flex-1 rounded-2xl px-4 py-3 font-bold text-white shadow-md disabled:opacity-40" style={{ background: INK, ...uiDisplay }}>Commander l'affiche</button>
+              className="flex-1 rounded-2xl px-4 py-3 font-bold text-white shadow-md disabled:opacity-40" style={{ background: INK, ...uiDisplay }}>Commander l&apos;affiche</button>
           </div>
-          <button onClick={() => window.print()} disabled={words.length === 0}
-            className="no-print rounded-2xl px-4 py-2 text-sm font-bold opacity-70 disabled:opacity-30 underline">ou imprimer un aperçu PDF chez soi</button>
         </section>
 
         {/* ============ AFFICHE ============ */}
         <section className="flex flex-col gap-3">
-          <div className="no-print text-xs font-bold uppercase tracking-widest opacity-60">Aperçu · grille de {tier} {tier > 1 ? "mots" : "mot"}</div>
-          <div id="poster" className="relative rounded-2xl shadow-xl overflow-hidden flex flex-col"
-            style={{ background: theme.bg, aspectRatio: "1 / 1.414", padding: "8%", containerType: "inline-size" }}>
+          <div className="text-xs font-bold uppercase tracking-widest opacity-60">Aperçu · grille de {tier} {tier > 1 ? "mots" : "mot"}</div>
+          <div id="poster" className="relative rounded-2xl shadow-xl overflow-hidden flex flex-col select-none"
+            style={{ background: theme.bg, aspectRatio: "1 / 1.414", padding: "8%", containerType: "inline-size", WebkitTouchCallout: "none" }}>
             <PosterDeco theme={theme} />
+            <Filigrane theme={theme} />
             <div className="text-center relative" style={{ marginBottom: "5%" }}>
               <div className="text-[9px] font-bold uppercase" style={{ color: theme.accent, letterSpacing: "0.4em" }}>ses premiers mots</div>
               <h2 className="leading-tight" style={{ color: theme.title, fontSize: "7cqw", fontFamily: theme.titleFont, fontWeight: 600, fontStyle: theme.titleItalic ? "italic" : "normal" }}>{posterTitle}</h2>
@@ -471,14 +375,9 @@ export default function Charabilla() {
                     <button key={i} onClick={() => openEdit(i)}
                       className="relative flex flex-col items-center justify-center text-center hover:scale-[1.03] transition-transform"
                       style={{ minHeight: 0, overflow: "hidden", background: "none" }}>
-                      <div className="relative flex items-center justify-center flex-shrink"
-                        style={{
-                          height: S.blob, maxHeight: "65%", aspectRatio: "1",
-                          background: w.art.type === "lib" ? "none" : `radial-gradient(circle at 38% 32%, ${theme.wash}, ${theme.washEdge})`,
-                          borderRadius: blobRadius,
-                        }}>
+                      <div className="relative flex items-center justify-center flex-shrink" style={{ height: S.art, maxHeight: "68%", aspectRatio: "1" }}>
                         {theme.deco === "stars" && w.art.type !== "lib" && <CellStars color={theme.accent} />}
-                        <Art art={w.art} size={w.art.type === "lib" ? "100%" : S.art} />
+                        <Illustration art={w.art} univers={themeKey} items={visibles} size="100%" />
                       </div>
                       <div className="leading-tight break-words w-full flex-shrink-0"
                         style={{ color: theme.word, fontSize: S.word, marginTop: "1.2cqw", fontFamily: theme.titleFont, fontWeight: 600, fontStyle: theme.titleItalic ? "italic" : "normal" }}>
@@ -487,7 +386,7 @@ export default function Charabilla() {
                     </button>
                   ) : (
                     <div key={i} className="flex flex-col items-center justify-center" style={{ minHeight: 0 }}>
-                      <div style={{ height: S.blob, maxHeight: "60%", aspectRatio: "1", border: "2px dashed", borderColor: theme.washEdge, opacity: 0.5, borderRadius: blobRadius }} />
+                      <div style={{ height: S.art, maxHeight: "60%", aspectRatio: "1", border: "2px dashed", borderColor: theme.washEdge, opacity: 0.5, borderRadius: "46% 54% 52% 48% / 52% 46% 54% 48%" }} />
                       <div style={{ fontSize: S.word, marginTop: "1.2cqw", visibility: "hidden" }}>·</div>
                     </div>
                   )
@@ -496,23 +395,26 @@ export default function Charabilla() {
             )}
             <div className="text-center pt-3 text-[9px] font-bold uppercase relative" style={{ color: theme.accent, letterSpacing: "0.35em" }}>charabilla</div>
           </div>
-          <p className="no-print text-xs opacity-60 text-center">Les images de ta bibliothèque remplacent les croquis dès qu'elles existent.</p>
+          <p className="text-xs opacity-60 text-center">Aperçu filigrané — l&apos;affiche imprimée est livrée sans filigrane.</p>
         </section>
       </main>
 
       {/* ============ MODALE ÉDITION ============ */}
       {editIdx !== null && words[editIdx] && (
-        <div className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setEditIdx(null)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setEditIdx(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center border-2 overflow-hidden" style={{ borderColor: "#E8ECF5", background: theme.bg }}>
-                <Art art={words[editIdx].art} size="52px" />
+                <Illustration art={words[editIdx].art} univers={themeKey} items={visibles} size="52px" />
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-lg leading-tight" style={uiDisplay}>« {words[editIdx].child} »</h3>
+                {enPreparation(words[editIdx].art, visibles) ? (
+                  <p className="text-[11px] opacity-60">Illustration en préparation — elle apparaîtra ici dès qu&apos;elle sera prête.</p>
+                ) : null}
                 <div className="flex gap-3">
-                  <button onClick={() => { setPickerFor(editIdx); setEditIdx(null); }} className="text-xs font-bold underline" style={{ color: CTA }}>Changer</button>
-                  <button onClick={() => { openGen(words[editIdx].real, editIdx); setEditIdx(null); }} className="text-xs font-bold underline" style={{ color: CTA }}>✨ Générer</button>
+                  <button onClick={() => { setRecherche(""); setPickerFor(editIdx); setEditIdx(null); }} className="text-xs font-bold underline" style={{ color: CTA }}>Changer</button>
+                  <button onClick={() => openGen(words[editIdx].real, editIdx)} className="text-xs font-bold underline" style={{ color: CTA }}>✨ Générer</button>
                 </div>
               </div>
               <button onClick={() => setEditIdx(null)} className="w-8 h-8 rounded-full font-bold flex-shrink-0" style={{ background: "#F0F3FA" }}>✕</button>
@@ -533,115 +435,52 @@ export default function Charabilla() {
         </div>
       )}
 
-      {/* ============ SÉLECTEUR D'ILLUSTRATION ============ */}
+      {/* ============ SÉLECTEUR D'ILLUSTRATION (bibliothèque) ============ */}
       {pickerFor !== null && (
-        <div className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setPickerFor(null)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setPickerFor(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-lg" style={uiDisplay}>Choisis une illustration</h3>
               <button onClick={() => setPickerFor(null)} className="w-8 h-8 rounded-full font-bold" style={{ background: "#F0F3FA" }}>✕</button>
             </div>
-
-            <button onClick={() => openGen(pickerFor === "new" ? (realWord.trim() || "nouveau mot") : words[pickerFor]?.real || "", pickerFor)}
-              className="w-full mb-4 rounded-2xl px-4 py-3 font-bold border-2" style={{ borderColor: CTA, color: CTA, background: "#FDF1F7" }}>
-              ✨ Générer une nouvelle illustration avec l'IA
-            </button>
-
-            <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Ta bibliothèque · {theme.label} ({(libIndex[themeKey] || []).length})</div>
-            {(libIndex[themeKey] || []).length === 0 ? (
-              <p className="text-xs opacity-60 mb-4">Vide pour l'instant — ajoute tes images générées dans « Ma bibliothèque » ou génère-les ici.</p>
+            <input value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Chercher un mot (ex. chat, compote…)"
+              className="w-full mb-3 rounded-2xl border-2 px-3 py-2.5 outline-none text-sm" style={{ borderColor: "#DCE2F0" }} autoFocus />
+            {motPourPicker && (
+              <button onClick={() => openGen(motPourPicker, pickerFor)}
+                className="w-full mb-4 rounded-2xl px-4 py-3 font-bold border-2" style={{ borderColor: CTA, color: CTA, background: "#FDF1F7" }}>
+                ✨ Générer une illustration pour « {motPourPicker} »
+              </button>
+            )}
+            <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Bibliothèque · {theme.label} ({itemsFiltres.length})</div>
+            {itemsFiltres.length === 0 ? (
+              <p className="text-xs opacity-60 mb-2">
+                {visibles.length === 0 ? "La bibliothèque de cet univers est encore vide — génère l'illustration de ton mot." : "Aucune illustration ne correspond à cette recherche."}
+              </p>
             ) : (
-              <div className="grid grid-cols-4 gap-2 mb-5">
-                {(libIndex[themeKey] || []).slice(0, 40).map((k) => {
-                  const img = imgCache[`${themeKey}:${k}`];
-                  return (
-                    <button key={k} onClick={() => setArtAt({ type: "lib", word: k })}
-                      className="rounded-2xl overflow-hidden flex flex-col items-center gap-0.5 hover:scale-105 transition-transform border p-1"
-                      style={{ background: theme.bg, borderColor: "#EEF1F8" }}>
-                      {img ? <img src={img} alt={k} className="w-full aspect-square object-cover rounded-xl" /> : <div className="w-full aspect-square rounded-xl animate-pulse" style={{ background: theme.wash }} />}
-                      <span className="text-[9px] font-bold truncate w-full text-center" style={{ color: INK, opacity: 0.7 }}>{k}</span>
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-4 gap-2">
+                {itemsFiltres.map((it) => (
+                  <button key={it.key} onClick={() => setArtAt({ type: "lib", word: it.key })}
+                    className="rounded-2xl overflow-hidden flex flex-col items-center gap-0.5 hover:scale-105 transition-transform border p-1"
+                    style={{ background: theme.bg, borderColor: "#EEF1F8" }}>
+                    <img src={it.url} alt={it.mot} className="w-full aspect-square object-contain rounded-xl" draggable={false} />
+                    <span className="text-[9px] font-bold truncate w-full text-center" style={{ color: INK, opacity: 0.7 }}>{it.mot}</span>
+                  </button>
+                ))}
               </div>
             )}
-
-            <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Croquis intégrés (provisoires)</div>
-            <div className="grid grid-cols-5 gap-2 mb-5">
-              {SVG_LIBRARY.map((id) => (
-                <button key={id} onClick={() => setArtAt({ type: "svg", id })}
-                  className="rounded-2xl p-1.5 flex flex-col items-center gap-0.5 hover:scale-105 transition-transform border"
-                  style={{ background: theme.bg, borderColor: "#EEF1F8" }} title={SVG_NAMES[id]}>
-                  <svg viewBox="0 0 100 100" className="w-10 h-10">{ART[id](theme.pal)}</svg>
-                  <span className="text-[9px] font-bold truncate w-full" style={{ color: INK, opacity: 0.7 }}>{SVG_NAMES[id]}</span>
-                </button>
-              ))}
-            </div>
-            <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Emojis (dépannage)</div>
-            <div className="grid grid-cols-7 gap-1">
-              {EMOJI_PICKER_LIST.map((e) => (
-                <button key={e} onClick={() => setArtAt({ type: "emoji", e })} className="text-2xl p-1.5 rounded-xl hover:bg-pink-50">{e}</button>
-              ))}
-            </div>
           </div>
         </div>
       )}
 
-      {/* ============ GÉNÉRATION IA (avec validation) ============ */}
-      {genOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.55)" }} onClick={() => setGenOpen(false)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-md max-h-[85vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-bold text-lg" style={uiDisplay}>✨ Générer « {genWord} »</h3>
-              <button onClick={() => setGenOpen(false)} className="w-8 h-8 rounded-full font-bold" style={{ background: "#F0F3FA" }}>✕</button>
-            </div>
-            <p className="text-[11px] opacity-60 mb-4">Univers {theme.label} · Dans la version finale, cette génération sera automatique (API). Ici, ChatGPT est ton atelier : l'app te prépare le prompt exact et garde le résultat validé.</p>
-
-            {!genImg ? (
-              <>
-                <label className="text-xs font-bold opacity-70">1 · L'objet à illustrer (en anglais, modifiable)</label>
-                <input value={genEn} onChange={(e) => setGenEn(e.target.value)}
-                  className="w-full mt-1 mb-3 rounded-2xl border-2 px-3 py-2.5 outline-none text-sm" style={{ borderColor: "#DCE2F0" }} />
-                <label className="text-xs font-bold opacity-70">2 · Le prompt verrouillé — copie-le dans ta conversation ChatGPT {theme.label}</label>
-                <textarea readOnly value={theme.prompt(genEn)} rows={6}
-                  className="w-full mt-1 rounded-2xl border-2 px-3 py-2.5 outline-none text-[11px] leading-relaxed" style={{ borderColor: "#DCE2F0", background: "#F7F9FD" }} />
-                <button onClick={copyPrompt} className="w-full mt-2 mb-4 rounded-2xl px-4 py-2.5 font-bold text-white" style={{ background: INK, ...uiDisplay }}>
-                  {copied ? "✓ Copié !" : "📋 Copier le prompt"}
-                </button>
-                <label className="text-xs font-bold opacity-70">3 · Dépose l'image générée</label>
-                <input ref={genFileRef} type="file" accept="image/*" className="hidden"
-                  onChange={(e) => { if (e.target.files?.[0]) handleGenUpload(e.target.files[0]); e.target.value = ""; }} />
-                <button onClick={() => genFileRef.current?.click()}
-                  className="w-full mt-1 rounded-2xl px-4 py-6 font-bold border-2 border-dashed" style={{ borderColor: "#C9D4E8", background: "#F7F9FD" }}>
-                  📥 Choisir l'image
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="rounded-3xl overflow-hidden mb-4 mx-auto" style={{ maxWidth: 260 }}>
-                  <img src={genImg} alt={genWord} className="w-full aspect-square object-cover" />
-                </div>
-                <p className="text-sm font-bold text-center mb-3">Cette illustration convient-elle ?</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setGenImg(null)}
-                    className="flex-1 rounded-2xl px-4 py-3 font-bold border-2" style={{ borderColor: "#DCE2F0" }}>
-                    ↻ Régénérer
-                  </button>
-                  <button onClick={validateGen}
-                    className="flex-1 rounded-2xl px-4 py-3 font-bold text-white" style={{ background: CTA, ...uiDisplay }}>
-                    ✓ Oui, l'utiliser
-                  </button>
-                </div>
-                <p className="text-[10px] opacity-50 mt-3 text-center">« Régénérer » : redemande dans ChatGPT (« reprends exactement le style ») puis redépose la nouvelle image. Une fois validée, elle rejoint ta bibliothèque pour toujours.</p>
-              </>
-            )}
-          </div>
-        </div>
+      {/* ============ GÉNÉRATION D'ILLUSTRATION ============ */}
+      {gen && (
+        <ModaleGeneration client={client} mot={gen.mot} univers={themeKey}
+          onClose={() => setGen(null)} onValide={surIllustrationValidee} onSignale={surSignalement} />
       )}
 
       {/* ============ COMMANDE (simulée) ============ */}
       {orderOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setOrderOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setOrderOpen(false)}>
           <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {!orderDone ? (
               <>
@@ -675,7 +514,7 @@ export default function Charabilla() {
                   className="w-full rounded-2xl px-4 py-3 font-bold text-white shadow-md" style={{ background: CTA, ...uiDisplay }}>
                   Commander · {total} € (démo)
                 </button>
-                <p className="text-[10px] opacity-50 mt-3">Version finale : paiement Stripe puis envoi automatique du fichier HD à Gelato (impression locale dans 30+ pays, cadre bois avec plexiglas et kit d'accrochage, livraison suivie).</p>
+                <p className="text-[10px] opacity-50 mt-3">Version finale : paiement Stripe puis envoi automatique du fichier HD à Gelato (impression locale dans 30+ pays, cadre bois avec plexiglas et kit d&apos;accrochage, livraison suivie).</p>
               </>
             ) : (
               <div className="text-center py-4">
