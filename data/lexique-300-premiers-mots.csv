@@ -1,0 +1,287 @@
+﻿mot,categorie,terme_anglais_prompt,illustrable,priorite
+chat,Animaux,cat,oui,1
+chien,Animaux,dog,oui,1
+lapin,Animaux,rabbit,oui,1
+oiseau,Animaux,bird,oui,1
+poisson,Animaux,fish,oui,1
+vache,Animaux,cow,oui,1
+cheval,Animaux,horse,oui,1
+cochon,Animaux,pig,oui,1
+mouton,Animaux,sheep,oui,1
+poule,Animaux,hen,oui,1
+coq,Animaux,rooster,oui,1
+canard,Animaux,duck,oui,1
+souris,Animaux,mouse,oui,1
+ours,Animaux,bear,oui,1
+lion,Animaux,lion,oui,1
+tigre,Animaux,tiger,oui,1
+éléphant,Animaux,elephant,oui,1
+singe,Animaux,monkey,oui,1
+girafe,Animaux,giraffe,oui,1
+zèbre,Animaux,zebra,oui,1
+loup,Animaux,wolf,oui,1
+renard,Animaux,fox,oui,1
+grenouille,Animaux,frog,oui,1
+tortue,Animaux,turtle,oui,1
+escargot,Animaux,snail,oui,1
+papillon,Animaux,butterfly,oui,1
+abeille,Animaux,bee,oui,1
+coccinelle,Animaux,ladybug,oui,1
+araignée,Animaux,spider,oui,1
+fourmi,Animaux,ant,oui,1
+serpent,Animaux,snake,oui,1
+dinosaure,Animaux,dinosaur,oui,1
+chèvre,Animaux,goat,oui,1
+âne,Animaux,donkey,oui,1
+hérisson,Animaux,hedgehog,oui,1
+écureuil,Animaux,squirrel,oui,1
+hibou,Animaux,owl,oui,1
+pingouin,Animaux,penguin,oui,1
+dauphin,Animaux,dolphin,oui,1
+baleine,Animaux,whale,oui,1
+crabe,Animaux,crab,oui,1
+poussin,Animaux,chick,oui,1
+pain,Aliments & boissons,bread loaf,oui,1
+lait,Aliments & boissons,glass of milk,oui,1
+eau,Aliments & boissons,glass of water,oui,1
+jus,Aliments & boissons,juice box,oui,1
+compote,Aliments & boissons,apple sauce bowl,oui,1
+yaourt,Aliments & boissons,yogurt pot,oui,1
+fromage,Aliments & boissons,cheese,oui,1
+banane,Aliments & boissons,banana,oui,1
+pomme,Aliments & boissons,apple,oui,1
+poire,Aliments & boissons,pear,oui,1
+fraise,Aliments & boissons,strawberry,oui,1
+orange,Aliments & boissons,orange fruit,oui,1
+raisin,Aliments & boissons,grapes,oui,1
+cerise,Aliments & boissons,cherries,oui,1
+pêche,Aliments & boissons,peach,oui,1
+citron,Aliments & boissons,lemon,oui,1
+tomate,Aliments & boissons,tomato,oui,1
+carotte,Aliments & boissons,carrot,oui,1
+pomme de terre,Aliments & boissons,potato,oui,1
+petits pois,Aliments & boissons,peas,oui,1
+soupe,Aliments & boissons,bowl of soup,oui,1
+pâtes,Aliments & boissons,bowl of pasta,oui,1
+riz,Aliments & boissons,bowl of rice,oui,1
+œuf,Aliments & boissons,egg,oui,1
+poulet,Aliments & boissons,roast chicken,oui,1
+jambon,Aliments & boissons,ham slice,oui,1
+gâteau,Aliments & boissons,birthday cake,oui,1
+biscuit,Aliments & boissons,cookie,oui,1
+bonbon,Aliments & boissons,candy,oui,1
+chocolat,Aliments & boissons,chocolate bar,oui,1
+glace,Aliments & boissons,ice cream cone,oui,1
+confiture,Aliments & boissons,jam jar,oui,1
+miel,Aliments & boissons,honey pot,oui,1
+céréales,Aliments & boissons,cereal bowl,oui,1
+crêpe,Aliments & boissons,pancake,oui,1
+frites,Aliments & boissons,french fries,oui,1
+pizza,Aliments & boissons,pizza slice,oui,1
+sucre,Aliments & boissons,sugar cubes,oui,1
+tête,Corps,child head,oui,1
+cheveux,Corps,hair,oui,1
+yeux,Corps,eyes,oui,1
+nez,Corps,nose,oui,1
+bouche,Corps,mouth,oui,1
+oreille,Corps,ear,oui,1
+dent,Corps,tooth,oui,1
+langue,Corps,tongue,oui,1
+main,Corps,hand,oui,1
+doigt,Corps,finger,oui,1
+bras,Corps,arm,oui,1
+jambe,Corps,leg,oui,1
+pied,Corps,foot,oui,1
+ventre,Corps,belly,oui,1
+dos,Corps,back,oui,1
+genou,Corps,knee,oui,1
+cœur,Corps,heart,oui,1
+joue,Corps,cheek,oui,1
+chaussure,Vêtements,shoe,oui,1
+chaussette,Vêtements,sock,oui,1
+pantalon,Vêtements,pants,oui,1
+tee-shirt,Vêtements,t-shirt,oui,1
+pull,Vêtements,sweater,oui,1
+robe,Vêtements,dress,oui,1
+jupe,Vêtements,skirt,oui,1
+manteau,Vêtements,coat,oui,1
+bonnet,Vêtements,beanie hat,oui,1
+chapeau,Vêtements,hat,oui,1
+écharpe,Vêtements,scarf,oui,1
+gant,Vêtements,mitten,oui,1
+pyjama,Vêtements,pajamas,oui,1
+couche,Vêtements,diaper,oui,1
+botte,Vêtements,rain boot,oui,1
+ballon,Jouets & jeux,balloon,oui,1
+balle,Jouets & jeux,ball,oui,1
+poupée,Jouets & jeux,doll,oui,1
+nounours,Jouets & jeux,teddy bear,oui,1
+doudou,Jouets & jeux,baby comfort blanket toy,oui,1
+livre,Jouets & jeux,picture book,oui,1
+cube,Jouets & jeux,building blocks,oui,1
+puzzle,Jouets & jeux,puzzle,oui,1
+crayon,Jouets & jeux,crayon,oui,1
+feutre,Jouets & jeux,marker pen,oui,1
+vélo,Jouets & jeux,tricycle,oui,1
+trottinette,Jouets & jeux,kick scooter,oui,1
+toboggan,Jouets & jeux,playground slide,oui,1
+balançoire,Jouets & jeux,swing,oui,1
+bulle,Jouets & jeux,soap bubbles,oui,1
+voiture,Véhicules,car,oui,1
+camion,Véhicules,truck,oui,1
+bus,Véhicules,bus,oui,1
+train,Véhicules,train,oui,1
+avion,Véhicules,airplane,oui,1
+hélicoptère,Véhicules,helicopter,oui,1
+bateau,Véhicules,sailboat,oui,1
+moto,Véhicules,motorbike,oui,1
+tracteur,Véhicules,tractor,oui,1
+camion de pompiers,Véhicules,fire truck,oui,1
+ambulance,Véhicules,ambulance,oui,1
+fusée,Véhicules,rocket,oui,1
+lit,Maison & meubles,child bed,oui,1
+chaise,Maison & meubles,chair,oui,1
+table,Maison & meubles,table,oui,1
+canapé,Maison & meubles,sofa,oui,1
+porte,Maison & meubles,door,oui,1
+fenêtre,Maison & meubles,window,oui,1
+escalier,Maison & meubles,stairs,oui,1
+bain,Maison & meubles,bathtub,oui,1
+douche,Maison & meubles,shower,oui,1
+pot,Maison & meubles,potty,oui,1
+télévision,Maison & meubles,television,oui,1
+téléphone,Maison & meubles,phone,oui,1
+lampe,Maison & meubles,lamp,oui,1
+clé,Maison & meubles,key,oui,1
+miroir,Maison & meubles,mirror,oui,1
+coussin,Maison & meubles,cushion,oui,1
+couverture,Maison & meubles,blanket,oui,1
+tapis,Maison & meubles,rug,oui,1
+poubelle,Maison & meubles,trash bin,oui,1
+horloge,Maison & meubles,clock,oui,1
+biberon,Objets du quotidien,baby bottle,oui,1
+tétine,Objets du quotidien,pacifier,oui,1
+cuillère,Objets du quotidien,spoon,oui,1
+fourchette,Objets du quotidien,fork,oui,1
+couteau,Objets du quotidien,butter knife,oui,1
+assiette,Objets du quotidien,plate,oui,1
+verre,Objets du quotidien,cup,oui,1
+bol,Objets du quotidien,bowl,oui,1
+serviette,Objets du quotidien,towel,oui,1
+brosse à dents,Objets du quotidien,toothbrush,oui,1
+dentifrice,Objets du quotidien,toothpaste tube,oui,1
+savon,Objets du quotidien,soap bar,oui,1
+peigne,Objets du quotidien,comb,oui,1
+lunettes,Objets du quotidien,glasses,oui,1
+montre,Objets du quotidien,watch,oui,1
+sac,Objets du quotidien,bag,oui,1
+parapluie,Objets du quotidien,umbrella,oui,1
+mouchoir,Objets du quotidien,tissue,oui,1
+ciseaux,Objets du quotidien,child scissors,oui,1
+bougie,Objets du quotidien,candle,oui,1
+papa,Personnes,dad,oui,1
+maman,Personnes,mom,oui,1
+bébé,Personnes,baby,oui,1
+papi,Personnes,grandpa,oui,1
+mamie,Personnes,grandma,oui,1
+tonton,Personnes,uncle,oui,1
+tata,Personnes,aunt,oui,1
+frère,Personnes,brother boy,oui,1
+sœur,Personnes,sister girl,oui,1
+docteur,Personnes,doctor,oui,1
+copain,Personnes,little friend,oui,1
+nounou,Personnes,nanny,oui,1
+soleil,Nature & dehors,sun,oui,1
+lune,Nature & dehors,moon,oui,1
+étoile,Nature & dehors,star,oui,1
+ciel,Nature & dehors,sky,oui,1
+nuage,Nature & dehors,cloud,oui,1
+pluie,Nature & dehors,rain,oui,1
+neige,Nature & dehors,snowman,oui,1
+vent,Nature & dehors,wind,oui,1
+arbre,Nature & dehors,tree,oui,1
+feuille,Nature & dehors,leaf,oui,1
+fleur,Nature & dehors,flower,oui,1
+herbe,Nature & dehors,grass,oui,1
+caillou,Nature & dehors,pebble,oui,1
+sable,Nature & dehors,sand bucket,oui,1
+mer,Nature & dehors,sea waves,oui,1
+montagne,Nature & dehors,mountain,oui,1
+feu,Nature & dehors,campfire,oui,1
+jardin,Nature & dehors,garden,oui,1
+forêt,Nature & dehors,forest,oui,1
+arc-en-ciel,Nature & dehors,rainbow,oui,1
+maison,Lieux,house,oui,1
+école,Lieux,school,oui,1
+crèche,Lieux,daycare,oui,1
+parc,Lieux,playground,oui,1
+magasin,Lieux,shop,oui,1
+piscine,Lieux,swimming pool,oui,1
+plage,Lieux,beach,oui,1
+ferme,Lieux,farm,oui,1
+zoo,Lieux,zoo,oui,1
+manger,Actions,child eating,oui,2
+boire,Actions,child drinking,oui,2
+dormir,Actions,child sleeping,oui,2
+jouer,Actions,child playing,oui,2
+courir,Actions,child running,oui,2
+marcher,Actions,child walking,oui,2
+sauter,Actions,child jumping,oui,2
+danser,Actions,child dancing,oui,2
+chanter,Actions,child singing,oui,2
+lire,Actions,child reading,oui,2
+dessiner,Actions,child drawing,oui,2
+pleurer,Actions,child crying,oui,2
+rire,Actions,child laughing,oui,2
+se laver,Actions,child washing hands,oui,2
+bisou,Actions,kiss,oui,2
+câlin,Actions,hug,oui,2
+tomber,Actions,child falling softly,oui,2
+se cacher,Actions,child playing hide and seek,oui,2
+oui,Petits mots sociaux,,non,3
+non,Petits mots sociaux,,non,3
+encore,Petits mots sociaux,,non,3
+merci,Petits mots sociaux,,non,3
+s'il te plaît,Petits mots sociaux,,non,3
+bonjour,Petits mots sociaux,,non,3
+au revoir,Petits mots sociaux,,non,3
+coucou,Petits mots sociaux,,non,3
+bravo,Petits mots sociaux,,non,3
+chut,Petits mots sociaux,,non,3
+attention,Petits mots sociaux,,non,3
+voilà,Petits mots sociaux,,non,3
+dodo,Petits mots sociaux,,non,3
+miam,Petits mots sociaux,,non,3
+beurk,Petits mots sociaux,,non,3
+aïe,Petits mots sociaux,,non,3
+allô,Petits mots sociaux,,non,3
+stop,Petits mots sociaux,,non,3
+parti,Petits mots sociaux,,non,3
+caché,Petits mots sociaux,,non,3
+miaou,Onomatopées,cat,via objet associé,3
+ouaf-ouaf,Onomatopées,dog,via objet associé,3
+meuh,Onomatopées,cow,via objet associé,3
+coin-coin,Onomatopées,duck,via objet associé,3
+cocorico,Onomatopées,rooster,via objet associé,3
+bêê,Onomatopées,sheep,via objet associé,3
+hi-han,Onomatopées,donkey,via objet associé,3
+vroum,Onomatopées,car,via objet associé,3
+boum,Onomatopées,,via objet associé,3
+tut-tut,Onomatopées,car horn,via objet associé,3
+toc-toc,Onomatopées,door,via objet associé,3
+splash,Onomatopées,water splash,via objet associé,3
+grand,Adjectifs & concepts,,non,3
+petit,Adjectifs & concepts,,non,3
+chaud,Adjectifs & concepts,,non,3
+froid,Adjectifs & concepts,,non,3
+beau,Adjectifs & concepts,,non,3
+sale,Adjectifs & concepts,,non,3
+propre,Adjectifs & concepts,,non,3
+gentil,Adjectifs & concepts,,non,3
+content,Adjectifs & concepts,,non,3
+triste,Adjectifs & concepts,,non,3
+ouvert,Adjectifs & concepts,,non,3
+fermé,Adjectifs & concepts,,non,3
+cassé,Adjectifs & concepts,,non,3
+mouillé,Adjectifs & concepts,,non,3
+fini,Adjectifs & concepts,,non,3
