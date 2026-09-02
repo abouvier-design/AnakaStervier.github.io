@@ -5,7 +5,7 @@
 // Phase 2 : remplacer ce module par Supabase Storage en gardant les mêmes fonctions.
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { THEMES } from "./themes";
+import { THEMES, LEXIQUE } from "./themes";
 
 export const UNIVERS_VALIDES = Object.keys(THEMES);
 const RACINE = process.env.BIBLIOTHEQUE_DIR || path.join(process.cwd(), "bibliotheque");
@@ -51,7 +51,8 @@ async function listerFichiersPublics(univers) {
     if (!cleValide(key)) continue;
     const stat = await fs.stat(cheminPublic(univers, nom)).catch(() => null);
     items.push({
-      key, mot: m[1], en: "", ext: m[2].toLowerCase(), fichier: nom, source: "fichier", statut: "valide",
+      key, mot: (LEXIQUE.find((l) => l.key === key) || {}).mot || m[1], en: (LEXIQUE.find((l) => l.key === key) || {}).en || "",
+      ext: m[2].toLowerCase(), fichier: nom, source: "fichier", statut: "valide",
       date: stat ? Math.floor(stat.mtimeMs) : 0, url: `/images/${univers}/${encodeURIComponent(nom)}`,
     });
   }
