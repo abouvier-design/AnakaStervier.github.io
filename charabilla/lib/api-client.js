@@ -96,7 +96,13 @@ function ecrireLocal(univers, items) {
 const clientLocal = {
   mode: "local",
   async listerBibliotheque(univers) {
-    return lireLocal(univers).map((it) => ({ ...it, url: it.image }));
+    // Images livrées avec la page (public/images/{univers}/), puis ce qui a été ajouté ici.
+    const parKey = {};
+    for (const it of (window.CHARABILLA_IMAGES && window.CHARABILLA_IMAGES[univers]) || []) {
+      parKey[it.key] = { ...it, source: "fichier", statut: "valide", ext: "png", date: 0 };
+    }
+    for (const it of lireLocal(univers)) parKey[it.key] = { ...it, url: it.image };
+    return Object.values(parKey).sort((a, b) => a.key.localeCompare(b.key));
   },
   async generer({ mot, univers, en }) {
     await new Promise((r) => setTimeout(r, 900));

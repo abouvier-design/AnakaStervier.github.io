@@ -34,12 +34,38 @@ async function ecrireJson(chemin, valeur) {
 const cheminManifest = (univers) => chemin( univers, "manifest.json");
 const urlImage = (univers, it) => `/api/images/${univers}/${it.key}.${it.ext}?v=${it.date}`;
 
+// Dossier des illustrations livrées avec le site : public/images/{univers}/{mot}.png
+// (adaptation n°2 de DEMARRAGE.md). Le nom du fichier = le mot.
+const DOSSIER_PUBLIC = path.join(process.cwd(), "public", "images");
+const cheminPublic = (...p) => path.join(/*turbopackIgnore: true*/ DOSSIER_PUBLIC, ...p);
+const keyifyFichier = (nom) => nom.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+async function listerFichiersPublics(univers) {
+  let noms = [];
+  try { noms = await fs.readdir(cheminPublic(univers)); } catch { return []; }
+  const items = [];
+  for (const nom of noms) {
+    const m = /^(.+)\.(png|jpe?g|webp|svg)$/i.exec(nom);
+    if (!m) continue;
+    const key = keyifyFichier(m[1]);
+    if (!cleValide(key)) continue;
+    const stat = await fs.stat(cheminPublic(univers, nom)).catch(() => null);
+    items.push({
+      key, mot: m[1], en: "", ext: m[2].toLowerCase(), fichier: nom, source: "fichier", statut: "valide",
+      date: stat ? Math.floor(stat.mtimeMs) : 0, url: `/images/${univers}/${encodeURIComponent(nom)}`,
+    });
+  }
+  return items;
+}
+
 export async function lister(univers) {
   verifierUnivers(univers);
   const manifest = await lireJson(cheminManifest(univers), {});
-  return Object.values(manifest)
-    .sort((a, b) => a.key.localeCompare(b.key))
-    .map((it) => ({ ...it, url: urlImage(univers, it) }));
+  const parKey = {};
+  for (const it of await listerFichiersPublics(univers)) parKey[it.key] = it;
+  // Ce qui a été ajouté depuis le back-office a priorité sur le fichier livré.
+  for (const it of Object.values(manifest)) parKey[it.key] = { ...it, url: urlImage(univers, it) };
+  return Object.values(parKey).sort((a, b) => a.key.localeCompare(b.key));
 }
 
 // Décode une data URL en { buffer, ext }.
@@ -85,6 +111,8 @@ export async function supprimer(univers, key) {
     delete manifest[key];
     await ecrireJson(cheminManifest(univers), manifest);
   }
+  const livre = (await listerFichiersPublics(univers)).find((f) => f.key === key);
+  if (livre) await fs.rm(cheminPublic(univers, livre.fichier), { force: true });
   return { ok: true };
 }
 

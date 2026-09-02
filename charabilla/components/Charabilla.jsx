@@ -114,6 +114,14 @@ export default function Charabilla() {
   const autoArt = useMemo(() => suggestArt(realWord) || { type: "svg", id: "etoile" }, [realWord, visibles]); // eslint-disable-line react-hooks/exhaustive-deps
   const newArt = pendingArt || autoArt;
   const noMatch = realWord.trim() && !pendingArt && !suggestArt(realWord);
+  const suggestions = useMemo(() => {
+    const k = keyify(realWord);
+    if (k.length < 2) return [];
+    return visibles
+      .filter((it) => it.key.includes(k) || keyify(it.mot).includes(k) || k.startsWith(it.key))
+      .sort((a, b) => (a.key.startsWith(k) ? 0 : 1) - (b.key.startsWith(k) ? 0 : 1))
+      .slice(0, 8);
+  }, [realWord, visibles]);
 
   const { tier, cols } = gridFor(words.length);
   const rows = Math.ceil(tier / cols);
@@ -294,11 +302,29 @@ export default function Charabilla() {
                 <Illustration art={newArt} univers={themeKey} items={visibles} size="52px" />
               </button>
               <div className="text-xs opacity-70 flex-1">
-                {newArt.type === "lib" ? "✓ Illustration de la bibliothèque" : noMatch ? "Pas encore d'illustration pour ce mot — génère-la !" : "Croquis provisoire — touche pour choisir ou générer la vraie illustration."}
+                {newArt.type === "lib" ? "✓ Illustration de la bibliothèque" : noMatch ? "Pas encore d'illustration pour ce mot." : "Croquis provisoire en attendant la vraie illustration."}
+                <button onClick={() => { setRecherche(""); setPickerFor("new"); }} className="block mt-0.5 font-bold underline" style={{ color: CTA }}>
+                  Parcourir la bibliothèque ({visibles.length})
+                </button>
               </div>
               <button onClick={addWord} disabled={!realWord.trim() || !childWord.trim() || words.length >= MAX_WORDS}
                 className="rounded-2xl px-5 py-3 font-bold text-white shadow-sm disabled:opacity-40" style={{ background: CTA, ...uiDisplay }}>Ajouter</button>
             </div>
+            {suggestions.length > 0 && (
+              <div className="mt-3">
+                <div className="text-[11px] font-bold opacity-60 mb-1.5">Illustrations trouvées pour « {realWord.trim()} »</div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {suggestions.map((it) => (
+                    <button key={it.key} onClick={() => setPendingArt({ type: "lib", word: it.key })}
+                      className="flex-shrink-0 w-16 rounded-2xl border-2 p-1 flex flex-col items-center gap-0.5 hover:scale-105 transition-transform"
+                      style={{ background: theme.bg, borderColor: newArt.type === "lib" && newArt.word === it.key ? CTA : "#EEF1F8" }}>
+                      <img src={it.url} alt={it.mot} className="w-full aspect-square object-contain rounded-xl" draggable={false} />
+                      <span className="text-[9px] font-bold truncate w-full text-center" style={{ color: INK, opacity: 0.7 }}>{it.mot}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {realWord.trim() && newArt.type !== "lib" && (
               <button onClick={() => openGen(realWord, "new")}
                 className="w-full mt-3 rounded-2xl px-4 py-2.5 text-sm font-bold border-2 transition-all"
@@ -457,7 +483,7 @@ export default function Charabilla() {
                 {visibles.length === 0 ? "La bibliothèque de cet univers est encore vide — génère l'illustration de ton mot." : "Aucune illustration ne correspond à cette recherche."}
               </p>
             ) : (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                 {itemsFiltres.map((it) => (
                   <button key={it.key} onClick={() => setArtAt({ type: "lib", word: it.key })}
                     className="rounded-2xl overflow-hidden flex flex-col items-center gap-0.5 hover:scale-105 transition-transform border p-1"
