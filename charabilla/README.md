@@ -1,66 +1,79 @@
 # Charabilla — Phase 1
 
 Application Next.js issue du prototype `prototype/charabilla.jsx`, avec les
-décisions produit prises par la fondatrice le 1er septembre 2026 :
+décisions produit de la fondatrice (voir `JOURNAL.md`).
 
-- La **bibliothèque d'illustrations est un back-office** (`/admin`), protégé
-  par mot de passe. L'utilisateur ne dépose jamais ses propres images.
-- L'utilisateur renseigne prénom, titre (dico / imagier), sous-titre, mots et
-  univers. L'illustration se trouve par le mot dans la bibliothèque ; sinon
-  il peut **« Générer une illustration »** dans l'outil (IA branchée côté
-  serveur, prompt verrouillé de l'univers), régénérer 3 fois au plus, puis
-  **signaler le mot** au back-office.
-- Sur l'affiche, les illustrations sont posées **directement sur le fond**
-  (ni cercle ni fond) et l'aperçu porte un **filigrane**.
+## Les deux interfaces
+
+**Client** (`/`) : formulaire du prototype (prénom, titre, sous-titre, mots,
+univers), affiche en direct avec filigrane, illustrations posées directement
+sur le fond. Si un mot n'a pas d'illustration, le client la **génère dans
+l'outil** (3 régénérations au plus, puis signalement au back-office). Il passe
+**commande** (format, cadre, coordonnées, paiement), reçoit un numéro, une
+**page de suivi** et des **e-mails** à chaque étape.
+
+**Back-office** (`/admin`, mot de passe) :
+- **Bibliothèque** par univers (Terre de sienne, Jardin botanique, Nuit
+  céleste) : dépôt d'illustrations, génération, validation de celles générées
+  par les clients, mots signalés, **noms dans plusieurs langues**.
+- **Commandes** : liste filtrable par statut et par format, fiche client pour
+  le SAV, changement de statut (payée → en production → expédiée → livrée,
+  annulation), numéro de colis, notes internes. Chaque changement envoie un
+  e-mail au client.
+- **Chiffre d'affaires** : total, mois en cours, panier moyen, par format, par
+  univers, par mois.
 
 ## Lancer en local
 
 ```bash
 npm install
-cp .env.example .env.local     # puis remplir ADMIN_PASSWORD (et OPENAI_API_KEY)
+cp .env.example .env.local     # puis remplir au minimum ADMIN_PASSWORD
 npm run dev
 ```
 
-- Site : [http://localhost:3000](http://localhost:3000)
-- Back-office : [http://localhost:3000/admin](http://localhost:3000/admin)
+Site : http://localhost:3000 · Back-office : http://localhost:3000/admin
 
-Sans `OPENAI_API_KEY`, la génération est en **mode démonstration** : elle
-renvoie le croquis provisoire du mot, ce qui permet de tester tout le
-parcours sans dépenser. Avec la clé, elle appelle `gpt-image-1`
-(1024 × 1024, qualité réglable par `GENERATION_QUALITE`).
+## Services externes (tous facultatifs en test)
+
+| Variable | Rôle | Sans elle |
+|---|---|---|
+| `ADMIN_PASSWORD` | Mot de passe du back-office | `/admin` reste fermé |
+| `OPENAI_API_KEY` | Génération d'illustrations (`gpt-image-1`) | Mode démonstration : croquis provisoire |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Paiement par carte (Stripe Checkout) | Mode démonstration : commande marquée payée directement |
+| `RESEND_API_KEY`, `EMAIL_EXPEDITEUR` | E-mails aux clients (Resend) | Simulation : l'e-mail est consigné dans la commande, pas envoyé |
+| `SITE_URL` | Adresse publique (liens des e-mails, retour de paiement) | `http://localhost:3000` |
+
+## Illustrations
+
+Un fichier déposé dans `public/images/{univers}/` fait partie de la
+bibliothèque de cet univers ; le nom du fichier est le mot (`chat.png`). Le
+back-office peut aussi déposer, générer, remplacer, supprimer, et donner des
+noms dans d'autres langues (la recherche du client les utilise toutes).
+Résolution d'un mot : correspondance exacte sur l'identifiant ou un nom, puis
+préfixe ≥ 3 lettres, puis croquis provisoire, sinon proposition de génération.
 
 ## Organisation
 
-| Dossier / fichier | Rôle |
+| Fichier | Rôle |
 |---|---|
-| `components/Charabilla.jsx` | Application utilisateur (formulaire, affiche, modales). |
-| `components/Admin.jsx` | Back-office : lexique des 100 mots, dépôt, génération, validation, mots signalés. |
-| `components/ModaleGeneration.jsx` | Modale « Générer une illustration », commune aux deux. |
-| `components/Illustration.jsx` | Affiche l'illustration d'un mot (bibliothèque, sinon croquis). |
-| `lib/themes.js` | Les 3 univers, palettes, prompts verrouillés, grille. |
-| `lib/art.jsx` | Les ~35 croquis SVG provisoires. |
-| `lib/lexique.generated.js` | Généré depuis `data/*.csv` par `scripts/generer-lexique.mjs`. |
-| `lib/api-client.js` | Accès à la bibliothèque et à la génération (mode serveur ou mode local de démo). |
-| `lib/library-store.js` | Stockage serveur des images et des signalements (Phase 1 : fichiers dans `bibliotheque/`). |
-| `lib/generation.js` | Appel à l'IA d'images (ou croquis en mode démo). |
-| `lib/admin-auth.js` | Mot de passe du back-office (cookie signé). |
-| `lib/storage.js` | Sauvegarde des dicos côté navigateur (`localStorage`). |
-| `app/api/*` | Routes : bibliothèque, images, génération, signalements, connexion admin. |
-
-## Résolution d'un mot vers son illustration
-
-Mot normalisé (minuscules, sans accent, tirets) → image de la bibliothèque de
-l'univers courant (exacte, puis préfixe ≥ 3 lettres) → croquis provisoire →
-sinon proposition de génération. Un même identifiant de mot existe dans les
-trois univers : changer d'univers échange toutes les illustrations.
+| `components/Charabilla.jsx` | Application client (formulaire, affiche, commande). |
+| `components/SuiviCommande.jsx` | Page de suivi d'une commande (`/commande/[id]`). |
+| `components/Admin.jsx` + `AdminCommandes.jsx` + `AdminChiffres.jsx` | Back-office. |
+| `components/ModaleGeneration.jsx`, `ModaleNoms.jsx`, `Illustration.jsx` | Briques partagées. |
+| `lib/themes.js`, `lib/art.jsx`, `lib/lexique.generated.js` | Univers, croquis, lexique (généré depuis `data/*.csv`). |
+| `lib/commandes-communs.js` | Statuts, prix, chiffre d'affaires (utilisable partout). |
+| `lib/library-store.js`, `lib/commandes-store.js` | Stockage serveur (Phase 1 : fichiers dans `bibliotheque/`). |
+| `lib/generation.js`, `lib/stripe.js`, `lib/emails.js`, `lib/admin-auth.js` | Services externes et sécurité. |
+| `lib/api-client.js` | Accès depuis le navigateur, en mode serveur ou en mode local (page de recette). |
+| `app/api/*` | Routes : bibliothèque, images, génération, signalements, commandes, webhook Stripe, connexion admin. |
 
 ## Limites connues de la Phase 1
 
-- **Stockage en fichiers** : parfait en local, mais un hébergement type Vercel
-  a un disque en lecture seule. La Phase 2 (Supabase Storage) remplace
-  `lib/library-store.js` sans toucher au reste.
-- **Sauvegarde des dicos** dans le navigateur uniquement (comptes en Phase 2).
-- **Résolution des images** : 1024 px ; la Phase 3 (PDF 300 dpi) tranchera
-  entre agrandissement et génération haute définition.
+- **Stockage en fichiers** : parfait en local ; un hébergement type Vercel a un
+  disque en lecture seule. La Phase 2 (Supabase) remplace les deux modules
+  `*-store.js` sans toucher au reste.
+- **Dicos sauvegardés** dans le navigateur uniquement (comptes en Phase 2).
+- **Images** : 1 024 à 1 254 px aujourd'hui ; agrandissement prévu dans la
+  fabrication du PDF (Phase 3).
 - Le filigrane décourage l'usage d'une capture d'écran ; rien ne peut
   empêcher la capture elle-même.

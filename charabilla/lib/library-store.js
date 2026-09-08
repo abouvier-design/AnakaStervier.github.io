@@ -59,14 +59,38 @@ async function listerFichiersPublics(univers) {
   return items;
 }
 
+// Métadonnées éditables (noms dans plusieurs langues), valables aussi pour les fichiers livrés.
+const cheminMetadonnees = (univers) => chemin( univers, "metadonnees.json");
+
+// Chaque illustration porte des noms par langue : { fr: "chat", en: "cat", es: "gato" }.
+function normaliserNoms(it, meta) {
+  const noms = { ...(it.noms || {}), ...((meta && meta.noms) || {}) };
+  if (!noms.fr) noms.fr = it.mot || it.key;
+  return { ...it, noms, mot: noms.fr };
+}
+
 export async function lister(univers) {
   verifierUnivers(univers);
   const manifest = await lireJson(cheminManifest(univers), {});
+  const metadonnees = await lireJson(cheminMetadonnees(univers), {});
   const parKey = {};
   for (const it of await listerFichiersPublics(univers)) parKey[it.key] = it;
   // Ce qui a été ajouté depuis le back-office a priorité sur le fichier livré.
   for (const it of Object.values(manifest)) parKey[it.key] = { ...it, url: urlImage(univers, it) };
-  return Object.values(parKey).sort((a, b) => a.key.localeCompare(b.key));
+  return Object.values(parKey).map((it) => normaliserNoms(it, metadonnees[it.key])).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+export async function mettreAJourNoms(univers, key, noms) {
+  verifierUnivers(univers); verifierKey(key);
+  const propres = {};
+  for (const [langue, nom] of Object.entries(noms || {})) {
+    if (/^[a-z]{2}$/.test(langue) && String(nom).trim()) propres[langue] = String(nom).trim().slice(0, 60);
+  }
+  if (!propres.fr) throw new Error("Le nom français est obligatoire");
+  const metadonnees = await lireJson(cheminMetadonnees(univers), {});
+  metadonnees[key] = { ...(metadonnees[key] || {}), noms: propres };
+  await ecrireJson(cheminMetadonnees(univers), metadonnees);
+  return (await lister(univers)).find((it) => it.key === key);
 }
 
 // Décode une data URL en { buffer, ext }.

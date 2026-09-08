@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { lister, enregistrer, supprimer, changerStatut } from "@/lib/library-store";
+import { lister, enregistrer, supprimer, changerStatut, mettreAJourNoms } from "@/lib/library-store";
 import { estAdmin } from "@/lib/admin-auth";
 
 const erreur = (message, status = 400) => NextResponse.json({ erreur: message }, { status });
@@ -30,7 +30,8 @@ export async function POST(req) {
 export async function PATCH(req) {
   try {
     if (!(await estAdmin())) return erreur("Réservé à l'administrateur", 403);
-    const { univers, key, statut } = await req.json();
+    const { univers, key, statut, noms } = await req.json();
+    if (noms) return NextResponse.json({ item: await mettreAJourNoms(univers, key, noms) });
     return NextResponse.json({ item: await changerStatut(univers, key, statut) });
   } catch (e) { return erreur(e.message); }
 }

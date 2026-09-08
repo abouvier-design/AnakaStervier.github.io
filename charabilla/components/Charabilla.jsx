@@ -12,6 +12,7 @@ import { ART, SVG_MAP, starPath } from "@/lib/art";
 import { creerClient } from "@/lib/api-client";
 import Illustration, { enPreparation } from "./Illustration";
 import ModaleGeneration from "./ModaleGeneration";
+import { calculerTotal } from "@/lib/commandes-communs";
 
 const CLE_MES_GENERATIONS = "charabilla-mes-generations";
 
@@ -82,7 +83,10 @@ export default function Charabilla() {
   const [orderOpen, setOrderOpen] = useState(false);
   const [orderFormat, setOrderFormat] = useState("a3");
   const [orderFrame, setOrderFrame] = useState("none");
-  const [orderDone, setOrderDone] = useState(false);
+  const [orderEtape, setOrderEtape] = useState("format"); // format | coordonnees
+  const [coord, setCoord] = useState({ prenom: "", nom: "", email: "", adresse1: "", adresse2: "", codePostal: "", ville: "", pays: "France" });
+  const [commandeEnCours, setCommandeEnCours] = useState(false);
+  const [erreurCommande, setErreurCommande] = useState("");
   const [loaded, setLoaded] = useState(false);
   // Bibliothèque de l'univers courant (gérée par le back-office) + mes propres générations
   const [items, setItems] = useState([]);
@@ -102,11 +106,14 @@ export default function Charabilla() {
   };
 
   // Priorité : bibliothèque > croquis intégré > rien (proposera la génération)
+  // Toutes les façons de nommer une illustration : identifiant + noms dans chaque langue.
+  const clesDe = (it) => [it.key, ...Object.values(it.noms || {}).map(keyify)].filter(Boolean);
   const suggestArt = (word) => {
     const w = normalize(word); const k = keyify(word);
     if (!w) return { type: "svg", id: "etoile" };
-    if (visibles.some((it) => it.key === k)) return { type: "lib", word: k };
-    for (const it of visibles) { if (w.length >= 3 && (it.key.startsWith(k) || k.startsWith(it.key))) return { type: "lib", word: it.key }; }
+    const exact = visibles.find((it) => clesDe(it).includes(k));
+    if (exact) return { type: "lib", word: exact.key };
+    for (const it of visibles) { if (w.length >= 3 && clesDe(it).some((c) => c.startsWith(k) || k.startsWith(c))) return { type: "lib", word: it.key }; }
     if (SVG_MAP[w]) return { type: "svg", id: SVG_MAP[w] };
     for (const key of Object.keys(SVG_MAP)) { if (w.length >= 3 && (key.startsWith(w) || w.startsWith(key))) return { type: "svg", id: SVG_MAP[key] }; }
     return null;
@@ -118,8 +125,8 @@ export default function Charabilla() {
     const k = keyify(realWord);
     if (k.length < 2) return [];
     return visibles
-      .filter((it) => it.key.includes(k) || keyify(it.mot).includes(k) || k.startsWith(it.key))
-      .sort((a, b) => (a.key.startsWith(k) ? 0 : 1) - (b.key.startsWith(k) ? 0 : 1))
+      .filter((it) => clesDe(it).some((c) => c.includes(k) || k.startsWith(c)))
+      .sort((a, b) => (clesDe(a).some((c) => c.startsWith(k)) ? 0 : 1) - (clesDe(b).some((c) => c.startsWith(k)) ? 0 : 1))
       .slice(0, 8);
   }, [realWord, visibles]);
 
@@ -238,11 +245,23 @@ export default function Charabilla() {
   const uiDisplay = { fontFamily: "var(--font-fredoka), sans-serif" };
   const fmt = FORMATS.find((f) => f.id === orderFormat);
   const frm = FRAMES.find((f) => f.id === orderFrame);
-  const total = fmt.price + (fmt.frame ? frm.price : 0);
+  const { total } = calculerTotal(orderFormat, orderFrame);
+
+  const passerCommande = async () => {
+    setCommandeEnCours(true); setErreurCommande("");
+    try {
+      const r = await client.creerCommande({
+        affiche: { childName, ageLine, titleStyle, themeKey, words }, formatId: orderFormat, cadreId: orderFrame, client: coord,
+      });
+      window.location.href = r.url || client.lienSuivi(r.id);
+    } catch (e) {
+      setErreurCommande(e.message || "La commande n'a pas pu être enregistrée"); setCommandeEnCours(false);
+    }
+  };
 
   const motPourPicker = pickerFor === "new" ? realWord.trim() : (typeof pickerFor === "number" ? words[pickerFor]?.real || "" : "");
   const rechercheNorm = keyify(recherche);
-  const itemsFiltres = visibles.filter((it) => !rechercheNorm || it.key.includes(rechercheNorm) || keyify(it.mot).includes(rechercheNorm));
+  const itemsFiltres = visibles.filter((it) => !rechercheNorm || clesDe(it).some((c) => c.includes(rechercheNorm)));
 
   if (!loaded) return <div className="min-h-screen" style={{ background: "#EEF1F8" }} />;
 
@@ -368,7 +387,7 @@ export default function Charabilla() {
 
           <div className="flex gap-3">
             <button onClick={saveProject} className="flex-1 rounded-2xl px-4 py-3 font-bold border-2 bg-white" style={{ borderColor: INK, ...uiDisplay }}>Sauvegarder</button>
-            <button onClick={() => { setOrderOpen(true); setOrderDone(false); }} disabled={words.length === 0}
+            <button onClick={() => { setOrderOpen(true); setOrderEtape("format"); setErreurCommande(""); }} disabled={words.length === 0}
               className="flex-1 rounded-2xl px-4 py-3 font-bold text-white shadow-md disabled:opacity-40" style={{ background: INK, ...uiDisplay }}>Commander l&apos;affiche</button>
           </div>
         </section>
@@ -504,14 +523,15 @@ export default function Charabilla() {
           onClose={() => setGen(null)} onValide={surIllustrationValidee} onSignale={surSignalement} />
       )}
 
-      {/* ============ COMMANDE (simulée) ============ */}
+      {/* ============ COMMANDE ============ */}
       {orderOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => setOrderOpen(false)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {!orderDone ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(51,50,78,0.5)" }} onClick={() => !commandeEnCours && setOrderOpen(false)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-xl mb-1" style={uiDisplay}>Commander « {posterTitle} »</h3>
+            <p className="text-xs opacity-60 mb-4">Impression fine art mat 200 g · expédiée sous 3 à 5 jours.</p>
+
+            {orderEtape === "format" ? (
               <>
-                <h3 className="font-bold text-xl mb-1" style={uiDisplay}>Commander « {posterTitle} »</h3>
-                <p className="text-xs opacity-60 mb-4">Impression fine art mat 200 g · expédiée sous 3 à 5 jours.</p>
                 <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Format</div>
                 <div className="flex flex-col gap-2 mb-4">
                   {FORMATS.map((f) => (
@@ -536,19 +556,41 @@ export default function Charabilla() {
                     </div>
                   </>
                 )}
-                <button onClick={() => setOrderDone(true)}
+                <button onClick={() => setOrderEtape("coordonnees")}
                   className="w-full rounded-2xl px-4 py-3 font-bold text-white shadow-md" style={{ background: CTA, ...uiDisplay }}>
-                  Commander · {total} € (démo)
+                  Continuer · {total} €
                 </button>
-                <p className="text-[10px] opacity-50 mt-3">Version finale : paiement Stripe puis envoi automatique du fichier HD à Gelato (impression locale dans 30+ pays, cadre bois avec plexiglas et kit d&apos;accrochage, livraison suivie).</p>
               </>
             ) : (
-              <div className="text-center py-4">
-                <div className="text-5xl mb-3">📦</div>
-                <h3 className="font-bold text-xl mb-2" style={uiDisplay}>Commande simulée !</h3>
-                <p className="text-sm opacity-70 mb-4">Dans la vraie plateforme, « {posterTitle} » partirait en impression {fmt.label}{fmt.frame && orderFrame !== "none" ? ` avec ${frm.label.toLowerCase()}` : ""}, livraison directe chez toi.</p>
-                <button onClick={() => setOrderOpen(false)} className="rounded-2xl px-6 py-3 font-bold text-white" style={{ background: INK, ...uiDisplay }}>Fermer</button>
-              </div>
+              <>
+                <div className="text-xs font-bold uppercase tracking-widest mb-2 opacity-60">Vos coordonnées</div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <input value={coord.prenom} onChange={(e) => setCoord({ ...coord, prenom: e.target.value })} placeholder="Prénom" className="rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                  <input value={coord.nom} onChange={(e) => setCoord({ ...coord, nom: e.target.value })} placeholder="Nom" className="rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                </div>
+                <input type="email" value={coord.email} onChange={(e) => setCoord({ ...coord, email: e.target.value })} placeholder="E-mail (pour le suivi de commande)" className="w-full mb-2 rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#F6C9DE" }} />
+                <div className="text-xs font-bold uppercase tracking-widest mb-2 mt-3 opacity-60">Adresse de livraison</div>
+                <input value={coord.adresse1} onChange={(e) => setCoord({ ...coord, adresse1: e.target.value })} placeholder="Adresse" className="w-full mb-2 rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                <input value={coord.adresse2} onChange={(e) => setCoord({ ...coord, adresse2: e.target.value })} placeholder="Complément (optionnel)" className="w-full mb-2 rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <input value={coord.codePostal} onChange={(e) => setCoord({ ...coord, codePostal: e.target.value })} placeholder="Code postal" className="rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                  <input value={coord.ville} onChange={(e) => setCoord({ ...coord, ville: e.target.value })} placeholder="Ville" className="col-span-2 rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+                </div>
+                <input value={coord.pays} onChange={(e) => setCoord({ ...coord, pays: e.target.value })} placeholder="Pays" className="w-full mb-4 rounded-2xl border-2 px-3 py-2.5 text-sm outline-none" style={{ borderColor: "#DCE2F0" }} />
+
+                <div className="rounded-2xl px-4 py-3 mb-4 text-sm flex items-center justify-between" style={{ background: "#F7F9FD" }}>
+                  <span>{fmt.label}{fmt.frame && orderFrame !== "none" ? ` · ${frm.label}` : ""}</span><b>{total} €</b>
+                </div>
+                {erreurCommande && <p className="text-xs font-bold mb-2" style={{ color: "#B5443A" }}>{erreurCommande}</p>}
+                <div className="flex gap-2">
+                  <button onClick={() => setOrderEtape("format")} disabled={commandeEnCours} className="rounded-2xl px-4 py-3 font-bold border-2 disabled:opacity-40" style={{ borderColor: "#DCE2F0" }}>Retour</button>
+                  <button onClick={passerCommande} disabled={commandeEnCours}
+                    className="flex-1 rounded-2xl px-4 py-3 font-bold text-white shadow-md disabled:opacity-40" style={{ background: CTA, ...uiDisplay }}>
+                    {commandeEnCours ? "Un instant…" : `Valider et payer · ${total} €`}
+                  </button>
+                </div>
+                <p className="text-[10px] opacity-50 mt-3">Vous recevrez un e-mail de confirmation avec un lien de suivi, puis un e-mail à chaque étape (production, expédition, livraison).</p>
+              </>
             )}
           </div>
         </div>

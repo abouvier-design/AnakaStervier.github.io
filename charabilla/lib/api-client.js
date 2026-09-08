@@ -6,6 +6,7 @@
 //                croquis provisoire du mot. C'est le mode de la page de recette statique.
 import { keyify, THEMES, toEnglish } from "./themes";
 import { croquisEnDataUrl, idCroquisPour } from "./croquis-svg";
+import { STATUTS, calculerTotal, calculerChiffres } from "./commandes-communs";
 
 export function detecterMode() {
   if (typeof window !== "undefined" && window.CHARABILLA_MODE === "local") return "local";
@@ -52,6 +53,31 @@ const clientServeur = {
     });
     return (await lireJson(r)).item;
   },
+  async mettreAJourNoms(univers, key, noms) {
+    const r = await fetch("/api/bibliotheque", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ univers, key, noms }),
+    });
+    return (await lireJson(r)).item;
+  },
+  lienSuivi(id) { return `/commande/${id}`; },
+  async creerCommande(donnees) {
+    const r = await fetch("/api/commandes", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(donnees),
+    });
+    return lireJson(r);
+  },
+  async lireCommande(id) {
+    return (await lireJson(await fetch(`/api/commandes?id=${encodeURIComponent(id)}`, { cache: "no-store" }))).commande;
+  },
+  async listerCommandes() {
+    return lireJson(await fetch("/api/commandes", { cache: "no-store" }));
+  },
+  async mettreAJourCommande(id, champs) {
+    const r = await fetch("/api/commandes", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...champs }),
+    });
+    return (await lireJson(r)).commande;
+  },
   async signaler({ univers, key, mot, en }) {
     const r = await fetch("/api/signalements", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ univers, key, mot, en }),
@@ -80,6 +106,15 @@ const clientServeur = {
 const CLE_BIBLIO = (u) => `charabilla-biblio-${u}`;
 const CLE_ADMIN = "charabilla-admin-demo";
 const CLE_SIGNALEMENTS = "charabilla-signalements";
+const CLE_META = (u) => `charabilla-meta-${u}`;
+const CLE_COMMANDES = "charabilla-commandes";
+
+function lireMetaLocales(univers) {
+  try { return JSON.parse(window.localStorage.getItem(CLE_META(univers)) || "{}"); } catch { return {}; }
+}
+function lireCommandesLocales() {
+  try { return JSON.parse(window.localStorage.getItem(CLE_COMMANDES) || "[]"); } catch { return []; }
+}
 export const MOT_DE_PASSE_DEMO = "charabilla";
 
 function lireSignalementsLocaux() {
@@ -102,7 +137,60 @@ const clientLocal = {
       parKey[it.key] = { ...it, source: "fichier", statut: "valide", ext: "png", date: 0 };
     }
     for (const it of lireLocal(univers)) parKey[it.key] = { ...it, url: it.image };
-    return Object.values(parKey).sort((a, b) => a.key.localeCompare(b.key));
+    const meta = lireMetaLocales(univers);
+    return Object.values(parKey).map((it) => {
+      const noms = { ...(it.noms || {}), ...((meta[it.key] || {}).noms || {}) };
+      if (!noms.fr) noms.fr = it.mot || it.key;
+      return { ...it, noms, mot: noms.fr };
+    }).sort((a, b) => a.key.localeCompare(b.key));
+  },
+  async mettreAJourNoms(univers, key, noms) {
+    const meta = lireMetaLocales(univers);
+    meta[key] = { noms };
+    window.localStorage.setItem(CLE_META(univers), JSON.stringify(meta));
+    return (await this.listerBibliotheque(univers)).find((it) => it.key === key);
+  },
+  lienSuivi(id) { return `#commande=${id}`; },
+  async creerCommande({ affiche, formatId, cadreId, client }) {
+    const { format, cadre, total } = calculerTotal(formatId, cadreId);
+    const liste = lireCommandesLocales();
+    const annee = new Date().getFullYear();
+    const numero = `CH-${annee}-${String(liste.length + 1).padStart(4, "0")}`;
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const commande = {
+      id, numero, date: Date.now(), statut: "payee", affiche, total,
+      format: { id: format.id, label: format.label, price: format.price },
+      cadre: format.frame ? { id: cadre.id, label: cadre.label, price: cadre.price } : null,
+      client, paiement: { mode: "demo", payeLe: Date.now() }, suivi: { transporteur: "", numero: "" }, notes: "",
+      historique: [{ date: Date.now(), statut: "payee", message: "Commande enregistrée (démonstration)" }],
+      emails: [{ mode: "simulation", date: Date.now(), a: client.email, sujet: `Commande ${numero}` }],
+    };
+    liste.push(commande);
+    window.localStorage.setItem(CLE_COMMANDES, JSON.stringify(liste));
+    return { id, numero };
+  },
+  async lireCommande(id) {
+    const c = lireCommandesLocales().find((x) => x.id === id);
+    if (!c) throw new Error("Commande introuvable");
+    return c;
+  },
+  async listerCommandes() {
+    const commandes = lireCommandesLocales().sort((a, b) => b.date - a.date);
+    return { commandes, chiffres: calculerChiffres(commandes), statuts: STATUTS, modes: { paiement: "demo", email: "simulation" } };
+  },
+  async mettreAJourCommande(id, champs) {
+    const liste = lireCommandesLocales();
+    const c = liste.find((x) => x.id === id);
+    if (!c) throw new Error("Commande introuvable");
+    if (champs.statut && champs.statut !== c.statut) {
+      c.statut = champs.statut;
+      c.historique.push({ date: Date.now(), statut: champs.statut, message: STATUTS[champs.statut]?.label || champs.statut });
+      c.emails.push({ mode: "simulation", date: Date.now(), a: c.client.email, sujet: `Commande ${c.numero} — ${champs.statut}` });
+    }
+    if (champs.suivi) c.suivi = champs.suivi;
+    if (typeof champs.notes === "string") c.notes = champs.notes;
+    window.localStorage.setItem(CLE_COMMANDES, JSON.stringify(liste));
+    return c;
   },
   async generer({ mot, univers, en }) {
     await new Promise((r) => setTimeout(r, 900));

@@ -9,6 +9,9 @@ import { THEMES, INK, CTA, keyify, toEnglish, LEXIQUE } from "@/lib/themes";
 import { ART, SVG_MAP } from "@/lib/art";
 import { creerClient, lireFichierImage, MOT_DE_PASSE_DEMO } from "@/lib/api-client";
 import ModaleGeneration from "./ModaleGeneration";
+import ModaleNoms from "./ModaleNoms";
+import AdminCommandes from "./AdminCommandes";
+import AdminChiffres from "./AdminChiffres";
 
 const ui = { fontFamily: "var(--font-nunito), sans-serif" };
 const uiDisplay = { fontFamily: "var(--font-fredoka), sans-serif" };
@@ -30,6 +33,8 @@ export default function Admin() {
   const fichiersRef = useRef(null);
   const remplacerRef = useRef(null);
   const [remplacerKey, setRemplacerKey] = useState(null);
+  const [onglet, setOnglet] = useState("bibliotheque"); // bibliotheque | commandes | chiffres
+  const [nomsPour, setNomsPour] = useState(null);
 
   const theme = THEMES[univers];
   const flash = (m) => { setNotice(m); setTimeout(() => setNotice(""), 2600); };
@@ -150,6 +155,7 @@ export default function Admin() {
       <div className="flex gap-1 px-1 pb-1 flex-wrap">
         <button onClick={() => ouvrirGen(mot, item?.en || en)} className="text-[11px] font-bold rounded-full px-2.5 py-1 text-white" style={{ background: CTA }}>{item ? "Regénérer" : "Générer"}</button>
         <button onClick={() => { setRemplacerKey(key_); remplacerRef.current?.click(); }} className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: "#F0F3FA" }}>{item ? "Remplacer" : "Déposer"}</button>
+        {item && <button onClick={() => setNomsPour(item)} className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: "#F0F3FA" }} title="Noms dans d'autres langues">Noms{Object.keys(item.noms || {}).length > 1 ? ` · ${Object.keys(item.noms).length}` : ""}</button>}
         {item && <button onClick={() => supprimer(key_)} className="text-[11px] font-bold rounded-full px-2 py-1" style={{ color: CTA }}>✕</button>}
       </div>
     </div>
@@ -170,6 +176,16 @@ export default function Admin() {
       {notice && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] rounded-full px-5 py-2 text-sm font-bold text-white shadow-lg" style={{ background: INK }}>{notice}</div>}
 
       <main className="max-w-6xl mx-auto px-5 pb-16 flex flex-col gap-5">
+        <nav className="flex gap-2 flex-wrap">
+          {[["bibliotheque", "Bibliothèque"], ["commandes", "Commandes"], ["chiffres", "Chiffre d'affaires"]].map(([k, l]) => (
+            <button key={k} onClick={() => setOnglet(k)} className="rounded-2xl px-4 py-2 text-sm font-bold" style={{ background: onglet === k ? INK : "#fff", color: onglet === k ? "#fff" : INK, ...uiDisplay }}>{l}</button>
+          ))}
+        </nav>
+
+        {onglet === "commandes" && <AdminCommandes client={client} flash={flash} />}
+        {onglet === "chiffres" && <AdminChiffres client={client} />}
+
+        {onglet === "bibliotheque" && <>
         <div className="rounded-2xl px-4 py-2.5 text-xs font-bold flex items-center gap-2" style={{ background: session.generation === "ia" ? "#E6F4EA" : "#FFF4D6", color: INK }}>
           {session.generation === "ia"
             ? "Génération d'illustrations : IA active (OpenAI, prompt verrouillé par univers)."
@@ -282,7 +298,13 @@ export default function Admin() {
             </div>
           </div>
         )}
+        </>}
       </main>
+
+      {nomsPour && (
+        <ModaleNoms item={nomsPour} onClose={() => setNomsPour(null)}
+          onSave={async (noms) => { await client.mettreAJourNoms(univers, nomsPour.key, noms); setNomsPour(null); await rafraichir(); flash("Noms enregistrés ✓"); }} />
+      )}
 
       <input ref={remplacerRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => { if (e.target.files?.[0] && remplacerKey) deposer([e.target.files[0]], remplacerKey); e.target.value = ""; setRemplacerKey(null); }} />
