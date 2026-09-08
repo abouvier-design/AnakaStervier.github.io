@@ -202,7 +202,7 @@ const clientLocal = {
   },
   async enregistrer({ univers, key, mot, en, image, source, statut }) {
     const items = lireLocal(univers).filter((it) => it.key !== key);
-    const item = { key, mot, en, image, source, statut, date: Date.now(), ext: "svg" };
+    const item = { key, mot, en, image, source, statut, date: Date.now(), ext: image.startsWith("data:image/png") ? "png" : "svg" };
     items.push(item);
     items.sort((a, b) => a.key.localeCompare(b.key));
     try { ecrireLocal(univers, items); } catch { throw new Error("Espace de stockage du navigateur plein"); }
@@ -258,7 +258,8 @@ export function lireFichierImage(file, tailleMax = 0) {
         const ctx = canvas.getContext("2d");
         const s = Math.min(img.width, img.height);
         ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, tailleMax, tailleMax);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
+        // PNG : la transparence des images détourées est conservée (le JPEG la rendrait noire).
+        resolve(canvas.toDataURL("image/png"));
       };
       img.onerror = reject;
       img.src = reader.result;
