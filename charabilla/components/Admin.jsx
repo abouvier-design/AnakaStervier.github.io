@@ -123,8 +123,9 @@ export default function Admin() {
             <p className="text-sm font-bold" style={{ color: "#B5443A" }}>Le back-office n&apos;est pas configuré : il faut définir le mot de passe (variable ADMIN_PASSWORD) dans les réglages du site.</p>
           ) : (
             <>
-              <label className="text-xs font-bold opacity-70">Mot de passe</label>
-              <input type="password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} autoFocus
+              <label htmlFor="mot-de-passe-admin" className="text-xs font-bold opacity-70">Mot de passe</label>
+              <input id="mot-de-passe-admin" type="password" autoComplete="current-password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)}
+                onTouchEnd={(e) => e.currentTarget.focus()}
                 className="w-full mt-1 mb-3 rounded-2xl border-2 px-3 py-2.5 outline-none" style={{ borderColor: "#DCE2F0" }} />
               {erreurConnexion && <p className="text-xs font-bold mb-2" style={{ color: "#B5443A" }}>{erreurConnexion}</p>}
               <button type="submit" className="w-full rounded-2xl px-4 py-3 font-bold text-white" style={{ background: INK, ...uiDisplay }}>Entrer</button>

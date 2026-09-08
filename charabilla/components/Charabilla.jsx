@@ -489,7 +489,7 @@ export default function Charabilla() {
               <button onClick={() => setPickerFor(null)} className="w-8 h-8 rounded-full font-bold" style={{ background: "#F0F3FA" }}>✕</button>
             </div>
             <input value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Chercher un mot (ex. chat, compote…)"
-              className="w-full mb-3 rounded-2xl border-2 px-3 py-2.5 outline-none text-sm" style={{ borderColor: "#DCE2F0" }} autoFocus />
+              className="w-full mb-3 rounded-2xl border-2 px-3 py-2.5 outline-none text-sm" style={{ borderColor: "#DCE2F0" }} />
             {motPourPicker && (
               <button onClick={() => openGen(motPourPicker, pickerFor)}
                 className="w-full mb-4 rounded-2xl px-4 py-3 font-bold border-2" style={{ borderColor: CTA, color: CTA, background: "#FDF1F7" }}>
